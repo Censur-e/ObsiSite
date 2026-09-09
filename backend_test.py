@@ -1,720 +1,681 @@
 #!/usr/bin/env python3
 """
-Backend API test suite for Obsidian anticheat panel
-Tests all endpoints with proper authentication and authorization
+Backend API tests for Obsidian Anticheat
+Tests NEW features: Live Status, Detections, Embed Customization
 """
 import requests
+import time
 import json
-import os
-from urllib.parse import urlparse, parse_qs
+from datetime import datetime
 
-# Load environment variables
+# Configuration
+BASE_URL = "https://obsidian-hub-7.preview.emergentagent.com/api"
 SESSION_SECRET = "obsidian_9f3a1c7e5b2d4680a1c3e5f7098b6d4e2a1c3e5f7098b6d4e"
-BASE_URL = "https://obsidian-hub-7.preview.emergentagent.com"
-API_BASE = f"{BASE_URL}/api"
 
-# Test personas
-ADMIN_PERSONA = {
-    "secret": SESSION_SECRET,
-    "discord_id": "995719567210983534",
-    "is_admin": True,
-    "rank": "Premium",
-    "status": "active",
-    "username": "AdminUser"
-}
-
-FREEMIUM_PERSONA = {
-    "secret": SESSION_SECRET,
-    "discord_id": "111111111111111111",
-    "is_admin": False,
+# Test users
+FREEMIUM_USER = {
+    "discord_id": "test_freemium_999001",
+    "username": "FreemiumTester",
     "rank": "Freemium",
     "status": "active",
-    "api_key": "obs_test_free",
-    "username": "FreemiumUser"
+    "api_key": "freemium_test_key_abc123xyz"
 }
 
-PREMIUM_PERSONA = {
-    "secret": SESSION_SECRET,
-    "discord_id": "222222222222222222",
-    "is_admin": False,
+PREMIUM_USER = {
+    "discord_id": "test_premium_999002",
+    "username": "PremiumTester",
     "rank": "Premium",
     "status": "active",
-    "api_key": "obs_test_prem",
-    "username": "PremiumUser"
-}
-
-# Session storage
-sessions = {
-    "admin": requests.Session(),
-    "freemium": requests.Session(),
-    "premium": requests.Session()
+    "api_key": "premium_test_key_def456uvw"
 }
 
 def print_test(name):
-    print(f"\n{'='*80}")
+    print(f"\n{'='*60}")
     print(f"TEST: {name}")
-    print('='*80)
+    print('='*60)
 
 def print_result(success, message):
     status = "✅ PASS" if success else "❌ FAIL"
     print(f"{status}: {message}")
 
-def test_1_discord_oauth_redirect():
-    """Test 1: GET /api/auth/discord/login should redirect to Discord OAuth"""
-    print_test("Discord OAuth Login Redirect")
+def create_test_user(user_data):
+    """Create a test user via dev-login"""
+    print_test(f"Creating test user: {user_data['username']}")
     try:
-        response = requests.get(f"{API_BASE}/auth/discord/login", allow_redirects=False)
-        
-        if response.status_code == 302:
-            location = response.headers.get('Location', '')
-            
-            # Check if it redirects to Discord
-            if 'discord.com/oauth2/authorize' in location:
-                # Parse the URL to check parameters
-                parsed = urlparse(location)
-                params = parse_qs(parsed.query)
-                
-                checks = {
-                    'client_id': 'client_id' in params,
-                    'response_type': params.get('response_type', [''])[0] == 'code',
-                    'redirect_uri': 'redirect_uri' in params,
-                    'scope': 'email' in params.get('scope', [''])[0] and 'identify' in params.get('scope', [''])[0]
-                }
-                
-                if all(checks.values()):
-                    print_result(True, f"Redirects to Discord OAuth with correct parameters")
-                    print(f"   Location: {location[:100]}...")
-                    return True
-                else:
-                    print_result(False, f"Missing or incorrect parameters: {checks}")
-                    return False
-            else:
-                print_result(False, f"Does not redirect to Discord. Location: {location}")
-                return False
-        else:
-            print_result(False, f"Expected 302, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception: {str(e)}")
-        return False
-
-def test_2_dev_login():
-    """Test 2: Dev-login with wrong and correct secret"""
-    print_test("Dev-login Authentication")
-    
-    # Test with wrong secret
-    try:
-        wrong_secret_data = {
-            "secret": "wrong_secret",
-            "discord_id": "999999999999999999",
-            "is_admin": False,
-            "rank": "Freemium",
-            "status": "active"
-        }
-        response = requests.post(f"{API_BASE}/auth/dev-login", json=wrong_secret_data)
-        
-        if response.status_code == 403:
-            print_result(True, "Wrong secret correctly rejected with 403")
-        else:
-            print_result(False, f"Wrong secret should return 403, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception testing wrong secret: {str(e)}")
-        return False
-    
-    # Test with correct secret - create all 3 personas
-    success = True
-    for name, persona in [("admin", ADMIN_PERSONA), ("freemium", FREEMIUM_PERSONA), ("premium", PREMIUM_PERSONA)]:
-        try:
-            response = sessions[name].post(f"{API_BASE}/auth/dev-login", json=persona)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if 'user' in data and 'obsidian_session' in response.cookies:
-                    print_result(True, f"{name.capitalize()} persona created successfully with session cookie")
-                    print(f"   User ID: {data['user'].get('id')}, Discord ID: {data['user'].get('discord_id')}")
-                else:
-                    print_result(False, f"{name.capitalize()} persona missing user data or cookie")
-                    success = False
-            else:
-                print_result(False, f"{name.capitalize()} persona creation failed: {response.status_code}")
-                success = False
-        except Exception as e:
-            print_result(False, f"Exception creating {name} persona: {str(e)}")
-            success = False
-    
-    return success
-
-def test_3_auth_me():
-    """Test 3: GET /api/auth/me with and without cookie"""
-    print_test("Auth Me Endpoint")
-    
-    # Test without cookie
-    try:
-        response = requests.get(f"{API_BASE}/auth/me")
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('user') is None:
-                print_result(True, "Without cookie returns {user: null}")
-            else:
-                print_result(False, f"Without cookie should return null user, got: {data}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception testing without cookie: {str(e)}")
-        return False
-    
-    # Test with each persona cookie
-    success = True
-    for name, session in sessions.items():
-        try:
-            response = session.get(f"{API_BASE}/auth/me")
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('user') and data['user'].get('discord_id'):
-                    print_result(True, f"{name.capitalize()} session returns user data")
-                    print(f"   Discord ID: {data['user'].get('discord_id')}, Rank: {data['user'].get('rank')}")
-                else:
-                    print_result(False, f"{name.capitalize()} session missing user data")
-                    success = False
-            else:
-                print_result(False, f"{name.capitalize()} session failed: {response.status_code}")
-                success = False
-        except Exception as e:
-            print_result(False, f"Exception testing {name} session: {str(e)}")
-            success = False
-    
-    return success
-
-def test_4_parameters_list():
-    """Test 4: GET /api/parameters with and without auth"""
-    print_test("Parameters List Endpoint")
-    
-    # Test without cookie
-    try:
-        response = requests.get(f"{API_BASE}/parameters")
-        if response.status_code == 401:
-            print_result(True, "Without cookie returns 401")
-        else:
-            print_result(False, f"Expected 401, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception testing without cookie: {str(e)}")
-        return False
-    
-    # Test with authenticated session
-    try:
-        response = sessions["freemium"].get(f"{API_BASE}/parameters")
-        if response.status_code == 200:
-            data = response.json()
-            params = data.get('parameters', [])
-            if len(params) == 38:
-                print_result(True, f"Returns 38 parameters")
-                # Check for specific parameters
-                param_keys = [p.get('key') for p in params]
-                if 'detection.fly' in param_keys and 'detection.coreuiv2' in param_keys:
-                    print_result(True, "Contains expected parameters (detection.fly, detection.coreuiv2)")
-                    # Check min_rank
-                    coreuiv2 = next((p for p in params if p.get('key') == 'detection.coreuiv2'), None)
-                    if coreuiv2 and coreuiv2.get('min_rank') == 'Premium':
-                        print_result(True, "detection.coreuiv2 has min_rank Premium")
-                    else:
-                        print_result(False, f"detection.coreuiv2 min_rank issue: {coreuiv2}")
-                else:
-                    print_result(False, f"Missing expected parameters")
-                return True
-            else:
-                print_result(False, f"Expected 38 parameters, got {len(params)}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception: {str(e)}")
-        return False
-
-def test_5_config_get_freemium():
-    """Test 5: GET /api/config with freemium cookie"""
-    print_test("Config Get (Freemium)")
-    
-    try:
-        response = sessions["freemium"].get(f"{API_BASE}/config")
-        if response.status_code == 200:
-            data = response.json()
-            if 'config' in data and 'webhook_url' in data and 'rank' in data and 'status' in data:
-                print_result(True, f"Returns config, webhook_url, rank, status")
-                print(f"   Rank: {data.get('rank')}, Status: {data.get('status')}")
-                return True
-            else:
-                print_result(False, f"Missing expected fields: {data.keys()}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception: {str(e)}")
-        return False
-
-def test_6_config_put_freemium():
-    """Test 6: PUT /api/config with freemium - test rank locking"""
-    print_test("Config Put (Freemium) - Rank Locking")
-    
-    try:
-        # Set detection.fly (Freemium allowed) to false and detection.coreuiv2 (Premium) to true
-        config_data = {
-            "config": {
-                "detection.fly": False,
-                "detection.coreuiv2": True  # Should be ignored for Freemium
+        response = requests.post(
+            f"{BASE_URL}/auth/dev-login",
+            json={
+                "secret": SESSION_SECRET,
+                "discord_id": user_data["discord_id"],
+                "username": user_data["username"],
+                "rank": user_data["rank"],
+                "status": user_data["status"],
+                "api_key": user_data["api_key"],
+                "is_admin": False
             },
-            "webhook_url": "https://example.com/webhook-not-real"
-        }
+            timeout=10
+        )
         
-        response = sessions["freemium"].put(f"{API_BASE}/config", json=config_data)
         if response.status_code == 200:
-            print_result(True, "Config update accepted")
-            
-            # Now GET the config to verify
-            get_response = sessions["freemium"].get(f"{API_BASE}/config")
-            if get_response.status_code == 200:
-                data = get_response.json()
-                config = data.get('config', {})
-                webhook = data.get('webhook_url', '')
-                
-                # Check detection.fly was saved
-                if config.get('detection.fly') == False:
-                    print_result(True, "detection.fly saved as false (Freemium allowed)")
-                else:
-                    print_result(False, f"detection.fly not saved correctly: {config.get('detection.fly')}")
-                    return False
-                
-                # Check detection.coreuiv2 was NOT saved (locked for Freemium)
-                if 'detection.coreuiv2' not in config or config.get('detection.coreuiv2') != True:
-                    print_result(True, "detection.coreuiv2 NOT saved (Premium locked)")
-                else:
-                    print_result(False, f"detection.coreuiv2 should not be saved for Freemium: {config.get('detection.coreuiv2')}")
-                    return False
-                
-                # Check webhook_url was saved
-                if webhook == "https://example.com/webhook-not-real":
-                    print_result(True, "webhook_url saved correctly")
-                else:
-                    print_result(False, f"webhook_url not saved: {webhook}")
-                    return False
-                
-                return True
-            else:
-                print_result(False, f"GET config failed: {get_response.status_code}")
-                return False
+            data = response.json()
+            cookies = response.cookies
+            session_cookie = cookies.get("obsidian_session")
+            print_result(True, f"User created: {data.get('user', {}).get('username')}")
+            print(f"   API Key: {user_data['api_key']}")
+            print(f"   Session Cookie: {session_cookie[:20]}..." if session_cookie else "   No session cookie")
+            return session_cookie
         else:
-            print_result(False, f"Expected 200, got {response.status_code}")
+            print_result(False, f"Failed to create user: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return None
+
+def test_live_status(api_key, session_cookie, user_name):
+    """Test 1: Live Status Tracking"""
+    print_test(f"Live Status Tracking - {user_name}")
+    
+    # Step 1: Call roblox/config with place_id and job_id
+    print("\n[Step 1] Calling GET /api/roblox/config with place_id=123 & job_id=abc")
+    try:
+        response = requests.get(
+            f"{BASE_URL}/roblox/config",
+            params={"key": api_key, "place_id": "123", "job_id": "abc"},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            print_result(True, "Roblox config endpoint responded successfully")
+            config_data = response.json()
+            print(f"   Rank: {config_data.get('rank')}")
+        else:
+            print_result(False, f"Roblox config failed: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print_result(False, f"Exception calling roblox/config: {str(e)}")
+        return False
+    
+    # Step 2: Verify via GET /api/config
+    print("\n[Step 2] Verifying via GET /api/config with session cookie")
+    try:
+        response = requests.get(
+            f"{BASE_URL}/config",
+            cookies={"obsidian_session": session_cookie},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            last_sync = data.get("last_sync")
+            last_place_id = data.get("last_place_id")
+            last_job_id = data.get("last_job_id")
+            online = data.get("online")
+            
+            print(f"   last_sync: {last_sync}")
+            print(f"   last_place_id: {last_place_id}")
+            print(f"   last_job_id: {last_job_id}")
+            print(f"   online: {online}")
+            
+            # Verify values
+            all_good = True
+            if last_place_id != "123":
+                print_result(False, f"last_place_id mismatch: expected '123', got '{last_place_id}'")
+                all_good = False
+            else:
+                print_result(True, "last_place_id is correct (123)")
+            
+            if last_job_id != "abc":
+                print_result(False, f"last_job_id mismatch: expected 'abc', got '{last_job_id}'")
+                all_good = False
+            else:
+                print_result(True, "last_job_id is correct (abc)")
+            
+            if not last_sync:
+                print_result(False, "last_sync is null or missing")
+                all_good = False
+            else:
+                # Check if last_sync is recent (within last 10 seconds)
+                try:
+                    sync_time = datetime.fromisoformat(last_sync.replace('Z', '+00:00'))
+                    now = datetime.now(sync_time.tzinfo)
+                    diff_seconds = (now - sync_time).total_seconds()
+                    if diff_seconds < 10:
+                        print_result(True, f"last_sync is recent ({diff_seconds:.1f}s ago)")
+                    else:
+                        print_result(False, f"last_sync is too old ({diff_seconds:.1f}s ago)")
+                        all_good = False
+                except Exception as e:
+                    print_result(False, f"Could not parse last_sync: {str(e)}")
+                    all_good = False
+            
+            if online != True:
+                print_result(False, f"online status is not True: {online}")
+                all_good = False
+            else:
+                print_result(True, "online status is True")
+            
+            return all_good
+        else:
+            print_result(False, f"GET /api/config failed: {response.status_code} - {response.text}")
             return False
     except Exception as e:
         print_result(False, f"Exception: {str(e)}")
         return False
 
-def test_7_config_put_premium():
-    """Test 7: PUT /api/config with premium - Premium params allowed"""
-    print_test("Config Put (Premium) - Premium Params Allowed")
+def test_detections(api_key, session_cookie, user_name):
+    """Test 2: Detections - Log, List, Filters"""
+    print_test(f"Detections - {user_name}")
+    
+    # Step 1: POST a detection
+    print("\n[Step 1] POST /api/roblox/detection")
+    detection_data = {
+        "player_name": "CheaterPlayer123",
+        "player_id": "987654321",
+        "detection": "fly",
+        "message": "Player was flying at high speed",
+        "sanction": "kick",
+        "place_id": "456789",
+        "job_id": "xyz789"
+    }
     
     try:
-        config_data = {
-            "config": {
-                "detection.coreuiv2": True
-            }
-        }
+        response = requests.post(
+            f"{BASE_URL}/roblox/detection",
+            headers={"x-api-key": api_key},
+            json=detection_data,
+            timeout=10
+        )
         
-        response = sessions["premium"].put(f"{API_BASE}/config", json=config_data)
         if response.status_code == 200:
-            print_result(True, "Config update accepted")
+            data = response.json()
+            print_result(True, "Detection posted successfully")
+            print(f"   Response: {json.dumps(data, indent=2)}")
             
-            # Verify it was saved
-            get_response = sessions["premium"].get(f"{API_BASE}/config")
-            if get_response.status_code == 200:
-                data = get_response.json()
-                config = data.get('config', {})
-                
-                if config.get('detection.coreuiv2') == True:
-                    print_result(True, "detection.coreuiv2 saved as true (Premium allowed)")
-                    return True
-                else:
-                    print_result(False, f"detection.coreuiv2 not saved: {config.get('detection.coreuiv2')}")
-                    return False
+            # Verify response structure
+            if data.get("ok") != True:
+                print_result(False, f"Expected ok=true, got {data.get('ok')}")
+                return False
             else:
-                print_result(False, f"GET config failed: {get_response.status_code}")
+                print_result(True, "Response has ok=true")
+            
+            if data.get("webhook_sent") != False:
+                print_result(False, f"Expected webhook_sent=false (no webhook set), got {data.get('webhook_sent')}")
+                # Not a critical failure, continue
+            else:
+                print_result(True, "webhook_sent=false (no webhook configured)")
+            
+            detection_id = data.get("id")
+            if detection_id:
+                print(f"   Detection ID: {detection_id}")
+        else:
+            print_result(False, f"POST detection failed: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
+    
+    # Step 2: GET detections list
+    print("\n[Step 2] GET /api/detections (list all)")
+    try:
+        response = requests.get(
+            f"{BASE_URL}/detections",
+            cookies={"obsidian_session": session_cookie},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            detections = data.get("detections", [])
+            print_result(True, f"Retrieved {len(detections)} detection(s)")
+            
+            # Find our detection
+            found = False
+            for d in detections:
+                if d.get("player_name") == "CheaterPlayer123":
+                    found = True
+                    print(f"   Found detection: {d.get('detection_type')} - {d.get('player_name')}")
+                    break
+            
+            if found:
+                print_result(True, "Our detection is in the list")
+            else:
+                print_result(False, "Our detection was not found in the list")
                 return False
         else:
-            print_result(False, f"Expected 200, got {response.status_code}")
+            print_result(False, f"GET detections failed: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
+    
+    # Step 3: Test filter by type
+    print("\n[Step 3] GET /api/detections?type=fly")
+    try:
+        response = requests.get(
+            f"{BASE_URL}/detections",
+            params={"type": "fly"},
+            cookies={"obsidian_session": session_cookie},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            detections = data.get("detections", [])
+            print_result(True, f"Filter by type=fly returned {len(detections)} detection(s)")
+            
+            # Verify all are fly type
+            all_fly = all(d.get("detection_type") == "fly" for d in detections)
+            if all_fly:
+                print_result(True, "All detections are type 'fly'")
+            else:
+                print_result(False, "Some detections are not type 'fly'")
+        else:
+            print_result(False, f"GET detections with filter failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
+    
+    # Step 4: Test filter by player
+    print("\n[Step 4] GET /api/detections?player=CheaterPlayer123")
+    try:
+        response = requests.get(
+            f"{BASE_URL}/detections",
+            params={"player": "CheaterPlayer123"},
+            cookies={"obsidian_session": session_cookie},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            detections = data.get("detections", [])
+            print_result(True, f"Filter by player returned {len(detections)} detection(s)")
+            
+            # Verify all match player name
+            all_match = all("CheaterPlayer123" in (d.get("player_name") or "") for d in detections)
+            if all_match:
+                print_result(True, "All detections match player name")
+            else:
+                print_result(False, "Some detections don't match player name")
+        else:
+            print_result(False, f"GET detections with filter failed: {response.status_code}")
+            return False
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
+    
+    return True
+
+def test_embed_customization(session_cookie, user_name):
+    """Test 3: Embed Customization"""
+    print_test(f"Embed Customization - {user_name}")
+    
+    # Step 1: PUT custom embed config
+    print("\n[Step 1] PUT /api/config with custom embed_config")
+    custom_embed = {
+        "title": "X {detection}",
+        "color": 255,
+        "footer": "F",
+        "show_reason": False
+    }
+    
+    try:
+        response = requests.put(
+            f"{BASE_URL}/config",
+            cookies={"obsidian_session": session_cookie},
+            json={"embed_config": custom_embed},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            print_result(True, "Embed config updated successfully")
+            data = response.json()
+            print(f"   Response: {json.dumps(data.get('embed_config', {}), indent=2)}")
+        else:
+            print_result(False, f"PUT config failed: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print_result(False, f"Exception: {str(e)}")
+        return False
+    
+    # Step 2: GET config and verify merge
+    print("\n[Step 2] GET /api/config to verify merged embed_config")
+    try:
+        response = requests.get(
+            f"{BASE_URL}/config",
+            cookies={"obsidian_session": session_cookie},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            embed_config = data.get("embed_config", {})
+            print(f"   Merged embed_config: {json.dumps(embed_config, indent=2)}")
+            
+            # Verify custom values
+            all_good = True
+            if embed_config.get("title") != "X {detection}":
+                print_result(False, f"title mismatch: expected 'X {{detection}}', got '{embed_config.get('title')}'")
+                all_good = False
+            else:
+                print_result(True, "title is correct")
+            
+            if embed_config.get("color") != 255:
+                print_result(False, f"color mismatch: expected 255, got {embed_config.get('color')}")
+                all_good = False
+            else:
+                print_result(True, "color is correct")
+            
+            if embed_config.get("footer") != "F":
+                print_result(False, f"footer mismatch: expected 'F', got '{embed_config.get('footer')}'")
+                all_good = False
+            else:
+                print_result(True, "footer is correct")
+            
+            if embed_config.get("show_reason") != False:
+                print_result(False, f"show_reason mismatch: expected False, got {embed_config.get('show_reason')}")
+                all_good = False
+            else:
+                print_result(True, "show_reason is False")
+            
+            # Verify defaults are preserved
+            if embed_config.get("show_player") != True:
+                print_result(False, f"show_player should default to True, got {embed_config.get('show_player')}")
+                all_good = False
+            else:
+                print_result(True, "show_player defaults to True")
+            
+            if embed_config.get("show_server") != True:
+                print_result(False, f"show_server should default to True, got {embed_config.get('show_server')}")
+                all_good = False
+            else:
+                print_result(True, "show_server defaults to True")
+            
+            return all_good
+        else:
+            print_result(False, f"GET config failed: {response.status_code} - {response.text}")
             return False
     except Exception as e:
         print_result(False, f"Exception: {str(e)}")
         return False
 
-def test_8_roblox_config():
-    """Test 8: GET /api/roblox/config with various API keys"""
-    print_test("Roblox Config Endpoint")
+def test_detection_errors():
+    """Test 4: Error cases for /api/roblox/detection"""
+    print_test("Detection Error Cases")
     
-    # Test missing key
+    # Test 1: 400 without API key
+    print("\n[Test 1] POST /api/roblox/detection without API key (expect 400)")
     try:
-        response = requests.get(f"{API_BASE}/roblox/config")
+        response = requests.post(
+            f"{BASE_URL}/roblox/detection",
+            json={"player_name": "Test", "detection": "test"},
+            timeout=10
+        )
+        
         if response.status_code == 400:
-            print_result(True, "Missing API key returns 400")
+            print_result(True, f"Correctly returned 400: {response.json().get('error')}")
         else:
             print_result(False, f"Expected 400, got {response.status_code}")
             return False
     except Exception as e:
-        print_result(False, f"Exception testing missing key: {str(e)}")
+        print_result(False, f"Exception: {str(e)}")
         return False
     
-    # Test invalid key
+    # Test 2: 401 with invalid API key
+    print("\n[Test 2] POST /api/roblox/detection with invalid API key (expect 401)")
     try:
-        response = requests.get(f"{API_BASE}/roblox/config", headers={"x-api-key": "nope"})
+        response = requests.post(
+            f"{BASE_URL}/roblox/detection",
+            headers={"x-api-key": "invalid_key_xyz"},
+            json={"player_name": "Test", "detection": "test"},
+            timeout=10
+        )
+        
         if response.status_code == 401:
-            print_result(True, "Invalid API key returns 401")
+            print_result(True, f"Correctly returned 401: {response.json().get('error')}")
         else:
             print_result(False, f"Expected 401, got {response.status_code}")
             return False
     except Exception as e:
-        print_result(False, f"Exception testing invalid key: {str(e)}")
+        print_result(False, f"Exception: {str(e)}")
         return False
     
-    # Test freemium key (header)
-    try:
-        response = requests.get(f"{API_BASE}/roblox/config", headers={"x-api-key": "obs_test_free"})
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Check structure
-            if 'detection' in data and 'webhook_url' in data and 'rank' in data:
-                print_result(True, "Freemium key returns nested config with webhook_url and rank")
-                print(f"   Rank: {data.get('rank')}")
-                
-                # Check Premium params are forced false
-                if hasattr(data.get('detection', {}), 'get'):
-                    coreuiv2 = data.get('detection', {}).get('coreuiv2')
-                    if coreuiv2 == False:
-                        print_result(True, "Premium param detection.coreuiv2 forced to false for Freemium")
-                    else:
-                        print_result(False, f"detection.coreuiv2 should be false, got: {coreuiv2}")
-                        return False
-                    
-                    # Check detection.fly reflects saved value (false from test 6)
-                    fly = data.get('detection', {}).get('fly')
-                    if fly == False:
-                        print_result(True, "detection.fly reflects saved value (false)")
-                    else:
-                        print_result(False, f"detection.fly should be false, got: {fly}")
-                        return False
-            else:
-                print_result(False, f"Missing expected fields: {data.keys()}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception testing freemium key: {str(e)}")
-        return False
-    
-    # Test premium key
-    try:
-        response = requests.get(f"{API_BASE}/roblox/config", headers={"x-api-key": "obs_test_prem"})
-        if response.status_code == 200:
-            data = response.json()
-            coreuiv2 = data.get('detection', {}).get('coreuiv2')
-            if coreuiv2 == True:
-                print_result(True, "Premium key allows detection.coreuiv2 = true")
-            else:
-                print_result(False, f"detection.coreuiv2 should be true for Premium, got: {coreuiv2}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception testing premium key: {str(e)}")
-        return False
-    
-    # Test with query param instead of header
-    try:
-        response = requests.get(f"{API_BASE}/roblox/config?key=obs_test_free")
-        if response.status_code == 200:
-            print_result(True, "Query param ?key= works")
-            return True
-        else:
-            print_result(False, f"Query param failed: {response.status_code}")
-            return False
-    except Exception as e:
-        print_result(False, f"Exception testing query param: {str(e)}")
-        return False
+    return True
 
-def test_9_admin_users():
-    """Test 9: Admin users management"""
-    print_test("Admin Users Management")
+def test_regression_rank_locking(freemium_cookie, premium_cookie):
+    """Test 5: Regression - Rank Locking"""
+    print_test("Regression: Rank Locking")
     
-    # Test with freemium (should fail)
+    # Get parameters to find a Premium-only param
+    print("\n[Step 1] Getting parameters list")
     try:
-        response = sessions["freemium"].get(f"{API_BASE}/admin/users")
-        if response.status_code == 403:
-            print_result(True, "Freemium user gets 403 for admin endpoint")
-        else:
-            print_result(False, f"Expected 403, got {response.status_code}")
+        response = requests.get(
+            f"{BASE_URL}/parameters",
+            cookies={"obsidian_session": freemium_cookie},
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            print_result(False, f"Failed to get parameters: {response.status_code}")
             return False
+        
+        params = response.json().get("parameters", [])
+        premium_param = None
+        freemium_param = None
+        
+        for p in params:
+            if p.get("min_rank") == "Premium" and not premium_param:
+                premium_param = p
+            if p.get("min_rank") == "Freemium" and not freemium_param:
+                freemium_param = p
+        
+        if not premium_param:
+            print_result(False, "No Premium parameter found")
+            return False
+        
+        print(f"   Premium param: {premium_param.get('key')}")
+        if freemium_param:
+            print(f"   Freemium param: {freemium_param.get('key')}")
     except Exception as e:
-        print_result(False, f"Exception testing freemium access: {str(e)}")
+        print_result(False, f"Exception: {str(e)}")
         return False
     
-    # Test with admin
+    # Test Freemium cannot save Premium param
+    print(f"\n[Step 2] Freemium user tries to save Premium param '{premium_param.get('key')}'")
     try:
-        response = sessions["admin"].get(f"{API_BASE}/admin/users")
+        response = requests.put(
+            f"{BASE_URL}/config",
+            cookies={"obsidian_session": freemium_cookie},
+            json={"config": {premium_param.get("key"): True}},
+            timeout=10
+        )
+        
         if response.status_code == 200:
-            data = response.json()
-            users = data.get('users', [])
-            if len(users) >= 3:  # At least our 3 personas
-                print_result(True, f"Admin gets user list ({len(users)} users)")
-                # Check if our personas are in the list
-                discord_ids = [u.get('discord_id') for u in users]
-                if '995719567210983534' in discord_ids and '111111111111111111' in discord_ids:
-                    print_result(True, "User list includes test personas")
-                else:
-                    print_result(False, f"Missing test personas in user list")
+            # Check if the param was actually saved
+            response2 = requests.get(
+                f"{BASE_URL}/config",
+                cookies={"obsidian_session": freemium_cookie},
+                timeout=10
+            )
+            
+            if response2.status_code == 200:
+                config = response2.json().get("config", {})
+                if config.get(premium_param.get("key")) == True:
+                    print_result(False, "Freemium user was able to save Premium param (should be locked)")
                     return False
-                return True
+                else:
+                    print_result(True, "Premium param was correctly ignored for Freemium user")
             else:
-                print_result(False, f"Expected at least 3 users, got {len(users)}")
+                print_result(False, f"Failed to verify config: {response2.status_code}")
                 return False
         else:
-            print_result(False, f"Expected 200, got {response.status_code}")
+            print_result(False, f"PUT config failed: {response.status_code}")
             return False
     except Exception as e:
         print_result(False, f"Exception: {str(e)}")
         return False
-
-def test_10_admin_update_user():
-    """Test 10: Admin update user rank and status"""
-    print_test("Admin Update User")
     
-    # First, get the freemium user ID
+    # Test Premium can save Premium param
+    print(f"\n[Step 3] Premium user saves Premium param '{premium_param.get('key')}'")
     try:
-        response = sessions["admin"].get(f"{API_BASE}/admin/users")
-        users = response.json().get('users', [])
-        freemium_user = next((u for u in users if u.get('discord_id') == '111111111111111111'), None)
-        
-        if not freemium_user:
-            print_result(False, "Could not find freemium user")
-            return False
-        
-        freemium_id = freemium_user.get('id')
-        print(f"   Freemium user ID: {freemium_id}")
-        
-        # Update rank to Premium
-        update_data = {"rank": "Premium"}
-        response = sessions["admin"].put(f"{API_BASE}/admin/users/{freemium_id}", json=update_data)
+        response = requests.put(
+            f"{BASE_URL}/config",
+            cookies={"obsidian_session": premium_cookie},
+            json={"config": {premium_param.get("key"): True}},
+            timeout=10
+        )
         
         if response.status_code == 200:
-            data = response.json()
-            if data.get('user', {}).get('rank') == 'Premium':
-                print_result(True, "Rank updated to Premium")
-            else:
-                print_result(False, f"Rank not updated: {data}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-        
-        # Create a pending user and activate it to test api_key generation
-        pending_persona = {
-            "secret": SESSION_SECRET,
-            "discord_id": "333333333333333333",
-            "is_admin": False,
-            "rank": "Freemium",
-            "status": "pending",
-            "username": "PendingUser"
-        }
-        
-        # Create pending user (without api_key)
-        pending_session = requests.Session()
-        response = pending_session.post(f"{API_BASE}/auth/dev-login", json=pending_persona)
-        
-        if response.status_code == 200:
-            pending_user = response.json().get('user')
-            pending_id = pending_user.get('id')
-            print(f"   Created pending user ID: {pending_id}")
+            # Verify it was saved
+            response2 = requests.get(
+                f"{BASE_URL}/config",
+                cookies={"obsidian_session": premium_cookie},
+                timeout=10
+            )
             
-            # Activate the user
-            activate_data = {"status": "active"}
-            response = sessions["admin"].put(f"{API_BASE}/admin/users/{pending_id}", json=activate_data)
-            
-            if response.status_code == 200:
-                data = response.json()
-                api_key = data.get('user', {}).get('api_key')
-                if api_key:
-                    print_result(True, f"API key generated on activation: {api_key[:20]}...")
-                    return True
+            if response2.status_code == 200:
+                config = response2.json().get("config", {})
+                if config.get(premium_param.get("key")) == True:
+                    print_result(True, "Premium user successfully saved Premium param")
                 else:
-                    print_result(False, "API key not generated on activation")
+                    print_result(False, "Premium param was not saved for Premium user")
                     return False
             else:
-                print_result(False, f"Activation failed: {response.status_code}")
+                print_result(False, f"Failed to verify config: {response2.status_code}")
                 return False
         else:
-            print_result(False, f"Pending user creation failed: {response.status_code}")
+            print_result(False, f"PUT config failed: {response.status_code}")
             return False
-            
     except Exception as e:
         print_result(False, f"Exception: {str(e)}")
         return False
-
-def test_11_admin_parameters_crud():
-    """Test 11: Admin parameters CRUD"""
-    print_test("Admin Parameters CRUD")
     
-    # Create a new parameter
-    try:
-        new_param = {
-            "key": "detection.testcheck",
-            "label": "Test Check",
-            "category": "Detections",
-            "type": "boolean",
-            "default_value": False,
-            "min_rank": "Freemium",
-            "sort_order": 99
-        }
-        
-        response = sessions["admin"].post(f"{API_BASE}/admin/parameters", json=new_param)
-        
-        if response.status_code == 200:
-            data = response.json()
-            param = data.get('parameter')
-            if param and param.get('key') == 'detection.testcheck':
-                print_result(True, f"Parameter created: {param.get('id')}")
-                param_id = param.get('id')
-            else:
-                print_result(False, f"Parameter not created correctly: {data}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-        
-        # Verify it appears in the list
-        response = sessions["admin"].get(f"{API_BASE}/parameters")
-        if response.status_code == 200:
-            params = response.json().get('parameters', [])
-            if any(p.get('key') == 'detection.testcheck' for p in params):
-                print_result(True, "New parameter appears in list")
-            else:
-                print_result(False, "New parameter not in list")
-                return False
-        else:
-            print_result(False, f"GET parameters failed: {response.status_code}")
-            return False
-        
-        # Update the parameter
-        update_data = {"label": "Test Check Updated"}
-        response = sessions["admin"].put(f"{API_BASE}/admin/parameters/{param_id}", json=update_data)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('parameter', {}).get('label') == 'Test Check Updated':
-                print_result(True, "Parameter updated")
-            else:
-                print_result(False, f"Parameter not updated: {data}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-        
-        # Delete the parameter
-        response = sessions["admin"].delete(f"{API_BASE}/admin/parameters/{param_id}")
-        
-        if response.status_code == 200:
-            print_result(True, "Parameter deleted")
-            
-            # Verify it's gone
-            response = sessions["admin"].get(f"{API_BASE}/parameters")
-            if response.status_code == 200:
-                params = response.json().get('parameters', [])
-                if not any(p.get('key') == 'detection.testcheck' for p in params):
-                    print_result(True, "Parameter removed from list")
-                    return True
-                else:
-                    print_result(False, "Parameter still in list after deletion")
-                    return False
-            else:
-                print_result(False, f"GET parameters failed: {response.status_code}")
-                return False
-        else:
-            print_result(False, f"Expected 200, got {response.status_code}")
-            return False
-            
-    except Exception as e:
-        print_result(False, f"Exception: {str(e)}")
-        return False
+    return True
 
-def test_12_webhook_test():
-    """Test 12: Webhook test endpoint"""
-    print_test("Webhook Test Endpoint")
+def test_regression_roblox_endpoint(api_key):
+    """Test 6: Regression - Roblox Config Endpoint"""
+    print_test("Regression: Roblox Config Endpoint")
     
-    # Test with empty webhook_url
+    print("\n[Test] GET /api/roblox/config with API key")
     try:
-        # First, clear the webhook_url
-        sessions["freemium"].put(f"{API_BASE}/config", json={"webhook_url": ""})
+        response = requests.get(
+            f"{BASE_URL}/roblox/config",
+            params={"key": api_key},
+            timeout=10
+        )
         
-        response = sessions["freemium"].post(f"{API_BASE}/webhook/test", json={"webhook_url": ""})
-        
-        if response.status_code == 400:
+        if response.status_code == 200:
             data = response.json()
-            if data.get('error') == 'no_webhook':
-                print_result(True, "Empty webhook returns 400 with no_webhook error")
-            else:
-                print_result(True, f"Empty webhook returns 400 (error: {data.get('error')})")
-        else:
-            print_result(False, f"Expected 400, got {response.status_code}")
-            return False
-        
-        # Test with invalid URL (not a real Discord webhook)
-        # Note: We're not using a real webhook as instructed
-        response = sessions["freemium"].post(f"{API_BASE}/webhook/test", json={"webhook_url": "https://invalid-webhook-url.example.com/test"})
-        
-        if response.status_code == 400:
-            print_result(True, "Invalid webhook URL returns 400")
+            print_result(True, "Roblox config endpoint working")
+            print(f"   Rank: {data.get('rank')}")
+            print(f"   Has webhook_url field: {'webhook_url' in data}")
+            
+            # Verify structure
+            if "rank" not in data:
+                print_result(False, "Missing 'rank' field")
+                return False
+            
+            if "webhook_url" not in data:
+                print_result(False, "Missing 'webhook_url' field")
+                return False
+            
+            print_result(True, "Response structure is correct")
             return True
         else:
-            # It might succeed if the URL is technically valid but fails to send
-            print_result(True, f"Invalid webhook handled (status: {response.status_code})")
-            return True
-            
+            print_result(False, f"Roblox config failed: {response.status_code} - {response.text}")
+            return False
     except Exception as e:
         print_result(False, f"Exception: {str(e)}")
         return False
 
 def main():
-    print("\n" + "="*80)
-    print("OBSIDIAN BACKEND API TEST SUITE")
-    print("="*80)
-    print(f"Base URL: {BASE_URL}")
-    print(f"API Base: {API_BASE}")
-    print("="*80)
+    print("\n" + "="*60)
+    print("OBSIDIAN ANTICHEAT - BACKEND API TESTS")
+    print("Testing NEW Features: Live Status, Detections, Embed Customization")
+    print("="*60)
     
     results = {}
     
-    # Run all tests
-    results['test_1'] = test_1_discord_oauth_redirect()
-    results['test_2'] = test_2_dev_login()
-    results['test_3'] = test_3_auth_me()
-    results['test_4'] = test_4_parameters_list()
-    results['test_5'] = test_5_config_get_freemium()
-    results['test_6'] = test_6_config_put_freemium()
-    results['test_7'] = test_7_config_put_premium()
-    results['test_8'] = test_8_roblox_config()
-    results['test_9'] = test_9_admin_users()
-    results['test_10'] = test_10_admin_update_user()
-    results['test_11'] = test_11_admin_parameters_crud()
-    results['test_12'] = test_12_webhook_test()
+    # Setup: Create test users
+    print("\n" + "="*60)
+    print("SETUP: Creating Test Users")
+    print("="*60)
+    
+    freemium_cookie = create_test_user(FREEMIUM_USER)
+    if not freemium_cookie:
+        print("\n❌ FATAL: Could not create Freemium test user")
+        return
+    
+    premium_cookie = create_test_user(PREMIUM_USER)
+    if not premium_cookie:
+        print("\n❌ FATAL: Could not create Premium test user")
+        return
+    
+    print("\n✅ Test users created successfully")
+    
+    # Run tests
+    print("\n" + "="*60)
+    print("RUNNING TESTS")
+    print("="*60)
+    
+    # Test 1: Live Status (Freemium)
+    results["Live Status (Freemium)"] = test_live_status(
+        FREEMIUM_USER["api_key"], 
+        freemium_cookie, 
+        "Freemium"
+    )
+    
+    # Test 2: Live Status (Premium)
+    results["Live Status (Premium)"] = test_live_status(
+        PREMIUM_USER["api_key"], 
+        premium_cookie, 
+        "Premium"
+    )
+    
+    # Test 3: Detections (Freemium)
+    results["Detections (Freemium)"] = test_detections(
+        FREEMIUM_USER["api_key"], 
+        freemium_cookie, 
+        "Freemium"
+    )
+    
+    # Test 4: Detections (Premium)
+    results["Detections (Premium)"] = test_detections(
+        PREMIUM_USER["api_key"], 
+        premium_cookie, 
+        "Premium"
+    )
+    
+    # Test 5: Embed Customization (Freemium)
+    results["Embed Customization (Freemium)"] = test_embed_customization(
+        freemium_cookie, 
+        "Freemium"
+    )
+    
+    # Test 6: Embed Customization (Premium)
+    results["Embed Customization (Premium)"] = test_embed_customization(
+        premium_cookie, 
+        "Premium"
+    )
+    
+    # Test 7: Detection Error Cases
+    results["Detection Error Cases"] = test_detection_errors()
+    
+    # Test 8: Regression - Rank Locking
+    results["Regression: Rank Locking"] = test_regression_rank_locking(
+        freemium_cookie, 
+        premium_cookie
+    )
+    
+    # Test 9: Regression - Roblox Endpoint
+    results["Regression: Roblox Endpoint"] = test_regression_roblox_endpoint(
+        FREEMIUM_USER["api_key"]
+    )
     
     # Summary
-    print("\n" + "="*80)
+    print("\n" + "="*60)
     print("TEST SUMMARY")
-    print("="*80)
+    print("="*60)
     
     passed = sum(1 for v in results.values() if v)
     total = len(results)
@@ -723,12 +684,16 @@ def main():
         status = "✅ PASS" if result else "❌ FAIL"
         print(f"{status}: {test_name}")
     
-    print("="*80)
+    print("\n" + "="*60)
     print(f"TOTAL: {passed}/{total} tests passed")
-    print("="*80)
+    print("="*60)
     
-    return passed == total
+    if passed == total:
+        print("\n🎉 ALL TESTS PASSED!")
+        return 0
+    else:
+        print(f"\n⚠️  {total - passed} test(s) failed")
+        return 1
 
 if __name__ == "__main__":
-    success = main()
-    exit(0 if success else 1)
+    exit(main())

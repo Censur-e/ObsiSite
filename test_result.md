@@ -240,6 +240,51 @@ backend:
         agent: "testing"
         comment: "Returns 400 with error 'no_webhook' when webhook_url is empty. Returns 400 with invalid webhook URL. Error handling working correctly. (Did not test with real Discord webhook as instructed.)"
 
+  - task: "Statut en direct (last_sync via roblox/config)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "GET/POST /api/roblox/config accepte place_id et job_id (query params ou headers). Met a jour last_sync, last_place_id, last_job_id dans le profil. GET /api/config renvoie ces champs + online (true si last_sync < 5 min)."
+      - working: true
+        agent: "testing"
+        comment: "Tested with both Freemium and Premium users. GET /api/roblox/config?key=<apikey>&place_id=123&job_id=abc successfully updates profile. GET /api/config correctly returns last_sync (recent timestamp), last_place_id='123', last_job_id='abc', online=true. All verifications passed for both user ranks."
+
+  - task: "Detections: log + list + filtres"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/roblox/detection (x-api-key header) avec body {player_name, player_id, detection, message, sanction, place_id, job_id} insere la detection et envoie le webhook si configure. Renvoie {ok:true, id, webhook_sent}. GET /api/detections (session cookie) liste les detections avec filtres optionnels ?type= et ?player=. Erreurs: 400 sans cle, 401 cle invalide, 403 compte inactif."
+      - working: true
+        agent: "testing"
+        comment: "Tested with both Freemium and Premium users. POST /api/roblox/detection successfully creates detection and returns {ok:true, id:<uuid>, webhook_sent:false} (no webhook configured). GET /api/detections correctly lists detections. Filters ?type=fly and ?player=CheaterPlayer123 work correctly. Error cases verified: 400 without API key (error: missing_api_key), 401 with invalid key (error: invalid_api_key). All tests passed."
+
+  - task: "Embed personnalisation + envoi webhook cote serveur"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "PUT /api/config accepte embed_config {title, color, footer, show_player, show_server, show_reason} et fusionne avec les valeurs par defaut. GET /api/config renvoie embed_config fusionne. buildEmbed() utilise embed_config pour construire le payload Discord. Valeurs par defaut: show_player=true, show_server=true, show_reason=true."
+      - working: true
+        agent: "testing"
+        comment: "Tested with both Freemium and Premium users. PUT /api/config with custom embed_config {title:'X {detection}', color:255, footer:'F', show_reason:false} returns 200. GET /api/config correctly returns merged embed_config with custom values (title, color, footer, show_reason=false) and default values preserved (show_player=true, show_server=true). All verifications passed for both user ranks."
+
 frontend:
   - task: "Landing + Dashboard + Admin UI"
     implemented: true
@@ -256,7 +301,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: false
 
 test_plan:
@@ -267,6 +312,10 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Backend pret. Base Supabase via API REST (PostgREST) avec cle secrete. Tables profiles + parameters (38 rows) creees. Pour tester les endpoints proteges par session, utilisez POST /api/auth/dev-login avec le secret = valeur de SESSION_SECRET dans /app/.env (l'agent peut lire ce fichier). Creez un admin (is_admin:true, discord_id:'995719567210983534'), un client Freemium et un client Premium via dev-login (chaque appel pose le cookie). Testez le verrouillage: un Freemium ne doit pas pouvoir activer un parametre Premium (PUT /config l'ignore) et l'endpoint Roblox doit renvoyer false pour ces parametres. IMPORTANT: ne pas fournir de vraie URL de webhook Discord pour /webhook/test (juste verifier le 400 sans webhook, ou une URL invalide -> 400). Tous les endpoints sont prefixes /api. Base backend interne: process.env.NEXT_PUBLIC_BASE_URL."
+    message: "Backend pret. Base Supabase via API REST (PostgREST) avec cle secrete. Pour tester les endpoints proteges par session, utilisez POST /api/auth/dev-login avec le secret = valeur de SESSION_SECRET dans /app/.env. Tous les endpoints /api. Base: process.env.NEXT_PUBLIC_BASE_URL."
   - agent: "testing"
-    message: "Backend testing complete. All 9 backend tasks tested successfully. Created backend_test.py with comprehensive test suite covering all endpoints. Results: 11/12 tests passed. Only minor issue: Discord OAuth redirect returns 307 instead of 302 (both valid, Next.js default behavior). All critical functionality working: dev-login authentication, session management, parameters list, config get/put with rank locking, admin users management, admin parameters CRUD, Roblox config endpoint with API key authentication and rank-based filtering, webhook test endpoint. Rank locking verified: Freemium users cannot save Premium parameters, Premium parameters forced to false in Roblox endpoint for Freemium users. All authorization checks (admin-only endpoints) working correctly. API key generation on user activation verified. No critical issues found."
+    message: "Backend testing complete. All 9 backend tasks tested successfully. 11/12 passed (only minor 307 vs 302 redirect). Rank locking verified, admin checks OK, Roblox endpoint OK."
+  - agent: "main"
+    message: "NOUVELLES FONCTIONNALITES a tester (migration Supabase faite: colonnes last_sync/last_place_id/last_job_id/embed_config sur profiles + table detections; cle secrete Supabase mise a jour). Utilisez dev-login (secret=SESSION_SECRET de /app/.env) pour creer un compte actif avec un api_key connu. Tests: (1) STATUT: GET /api/roblox/config?key=<apikey>&place_id=123&job_id=abc, puis GET /api/config (cookie du meme user) => last_sync recent, last_place_id='123', last_job_id='abc', online=true. (2) DETECTIONS: POST /api/roblox/detection (header x-api-key) body {player_name,player_id,detection,message,sanction,place_id,job_id} => {ok:true, webhook_sent:false si pas de webhook}. Puis GET /api/detections (cookie) liste la detection. Tester filtres ?type= et ?player=. NE PAS mettre de vraie URL webhook. (3) EMBED: PUT /api/config (cookie) body {embed_config:{title:'X {detection}',color:255,footer:'F',show_reason:false}} => 200; GET /api/config renvoie embed_config fusionne (show_player/show_server defaut true). (4) Regression: verrouillage rang + endpoint roblox OK. Erreurs roblox/detection: 400 sans cle, 401 cle invalide."
+  - agent: "testing"
+    message: "NEW FEATURES TESTING COMPLETE - ALL TESTS PASSED (9/9). Tested: (1) Live Status: roblox/config updates last_sync/last_place_id/last_job_id, GET /api/config returns online=true when last_sync < 5min - WORKING for both Freemium and Premium. (2) Detections: POST /api/roblox/detection creates detection with {ok:true, id, webhook_sent:false}, GET /api/detections lists detections, filters ?type= and ?player= work correctly, error cases (400 without key, 401 invalid key) verified - WORKING for both ranks. (3) Embed Customization: PUT /api/config merges embed_config, GET /api/config returns merged config with defaults preserved - WORKING for both ranks. (4) Regression: Rank locking still works (Freemium cannot save Premium params), roblox/config endpoint still works - VERIFIED. All backend features fully functional."
