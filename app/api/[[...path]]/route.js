@@ -88,60 +88,67 @@ async function handleGET(request, route, url) {
     const code = url.searchParams.get('code')
     if (!code) return NextResponse.redirect(new URL('/?error=missing_code', BASE_URL))
 
-    const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: DISCORD_REDIRECT_URI,
-      }),
-      cache: 'no-store',
-    })
-    if (!tokenRes.ok) return NextResponse.redirect(new URL('/?error=token', BASE_URL))
-    const token = await tokenRes.json()
-
-    const userRes = await fetch('https://discord.com/api/users/@me', {
-      headers: { Authorization: `Bearer ${token.access_token}` },
-      cache: 'no-store',
-    })
-    if (!userRes.ok) return NextResponse.redirect(new URL('/?error=user', BASE_URL))
-    const du = await userRes.json()
-
-    const isAdmin = String(du.id) === String(ADMIN_DISCORD_ID)
-    let profile = await getProfileByDiscordId(du.id)
-    if (!profile) {
-      profile = await insertProfile({
-        discord_id: du.id,
-        username: du.username,
-        global_name: du.global_name || null,
-        avatar: du.avatar || null,
-        email: du.email || null,
-        is_admin: isAdmin,
-        status: isAdmin ? 'active' : 'pending',
-        rank: isAdmin ? 'Premium' : null,
-        api_key: isAdmin ? newApiKey() : null,
-        config: {},
+    try {
+      const tokenRes = await fetch('https://discord.com/api/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: DISCORD_CLIENT_ID,
+          client_secret: DISCORD_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: DISCORD_REDIRECT_URI,
+        }),
+        cache: 'no-store',
       })
-    } else {
-      const patch = {
-        username: du.username,
-        global_name: du.global_name || null,
-        avatar: du.avatar || null,
-        email: du.email || null,
-      }
-      if (isAdmin && !profile.is_admin) { patch.is_admin = true; patch.status = 'active'; patch.rank = profile.rank || 'Premium' }
-      if (isAdmin && !profile.api_key) patch.api_key = newApiKey()
-      profile = await updateProfile(profile.id, patch)
-    }
+      if (!tokenRes.ok) return NextResponse.redirect(new URL('/?error=token', BASE_URL))
+      const token = await tokenRes.json()
 
-    const sessionToken = signSession({ id: profile.id, discord_id: profile.discord_id, iat: Date.now() })
-    const res = NextResponse.redirect(new URL('/', BASE_URL))
-    res.cookies.set(COOKIE, sessionToken, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 7 })
-    res.cookies.set('obsidian_state', '', { path: '/', maxAge: 0 })
-    return res
+      const userRes = await fetch('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${token.access_token}` },
+        cache: 'no-store',
+      })
+      if (!userRes.ok) return NextResponse.redirect(new URL('/?error=user', BASE_URL))
+      const du = await userRes.json()
+
+      const isAdmin = String(du.id) === String(ADMIN_DISCORD_ID)
+      let profile = await getProfileByDiscordId(du.id)
+      if (!profile) {
+        profile = await insertProfile({
+          discord_id: du.id,
+          username: du.username,
+          global_name: du.global_name || null,
+          avatar: du.avatar || null,
+          email: du.email || null,
+          is_admin: isAdmin,
+          status: isAdmin ? 'active' : 'pending',
+          rank: isAdmin ? 'Premium' : null,
+          api_key: isAdmin ? newApiKey() : null,
+          config: {},
+        })
+      } else {
+        const patch = {
+          username: du.username,
+          global_name: du.global_name || null,
+          avatar: du.avatar || null,
+          email: du.email || null,
+        }
+        if (isAdmin && !profile.is_admin) { patch.is_admin = true; patch.status = 'active'; patch.rank = profile.rank || 'Premium' }
+        if (isAdmin && !profile.api_key) patch.api_key = newApiKey()
+        profile = await updateProfile(profile.id, patch)
+      }
+
+      if (!profile || !profile.id) return NextResponse.redirect(new URL('/?error=profile', BASE_URL))
+
+      const sessionToken = signSession({ id: profile.id, discord_id: profile.discord_id, iat: Date.now() })
+      const res = NextResponse.redirect(new URL('/', BASE_URL))
+      res.cookies.set(COOKIE, sessionToken, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 7 })
+      res.cookies.set('obsidian_state', '', { path: '/', maxAge: 0 })
+      return res
+    } catch (e) {
+      console.error('CALLBACK ERROR:', e?.message, e?.status, JSON.stringify(e?.data))
+      return NextResponse.redirect(new URL('/?error=db', BASE_URL))
+    }
   }
 
   if (route === '/auth/me') {
