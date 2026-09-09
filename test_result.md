@@ -285,10 +285,55 @@ backend:
         agent: "testing"
         comment: "Tested with both Freemium and Premium users. PUT /api/config with custom embed_config {title:'X {detection}', color:255, footer:'F', show_reason:false} returns 200. GET /api/config correctly returns merged embed_config with custom values (title, color, footer, show_reason=false) and default values preserved (show_player=true, show_server=true). All verifications passed for both user ranks."
 
+  - task: "Stats endpoint (agregation detections)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NOUVEAU: GET /api/stats (session requise, 401 sinon). Renvoie {total, last24h, last7d, unique_players, by_type:[{name,count}], by_sanction:[{name,count}], top_players:[{name,count}] (max 10), timeline:[{date,count}] (14 jours)}. Base sur les detections du profil connecte (jusqu'a 1000). Admin peut passer ?profile_id=. Tester: creer plusieurs detections via /api/roblox/detection avec differents detection_type/sanction/player_name puis GET /api/stats => verifier total correct, by_type/by_sanction agreges, top_players trie desc, timeline a 14 entrees dont le jour courant compte les detections."
+      - working: true
+        agent: "testing"
+        comment: "GET /api/stats returns 401 without session cookie (verified). Created 5 detections with varied detection_type (fly x3, speed x1, noclip x1), sanction (kick x3, ban x2), and player_name (Bob x2, Alice x2, Charlie x1). GET /api/stats with cookie returned correct JSON: total=5, last24h=5, last7d=5, unique_players=3, by_type sorted descending with fly count=3, by_sanction with 2 entries, top_players sorted descending (Alice/Bob both count=2), timeline with exactly 14 entries, today's entry count=5. All aggregations and sorting working correctly."
+
+  - task: "Protection SSRF webhook (validation Discord)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NOUVEAU (securite): isValidDiscordWebhook() n'autorise que https + hote Discord (discord.com/discordapp.com/canary/ptb) + chemin commencant par /api/webhooks/. Applique sur: (a) PUT /api/config -> body.webhook_url non vide invalide => 400 invalid_webhook; chaine vide autorisee (efface); URL Discord valide acceptee. (b) POST /api/webhook/test -> webhook non-Discord => 400 invalid_webhook (avant no_webhook si vide). (c) envoi detection: n'envoie le webhook que si l'URL stockee est un webhook Discord valide. Tester: PUT /api/config avec webhook_url='http://169.254.169.254/latest/meta-data' ou 'http://localhost:3000' => 400 invalid_webhook; webhook_url='https://discord.com/api/webhooks/123/abc' => 200; webhook_url='' => 200 (efface)."
+      - working: true
+        agent: "testing"
+        comment: "All SSRF protection tests passed. PUT /api/config correctly returns 400 invalid_webhook for: AWS metadata URL (http://169.254.169.254/latest/meta-data/), localhost URL (http://localhost:3000/x), non-Discord host (https://evil.com/api/webhooks/1/2). PUT /api/config correctly returns 200 for: valid Discord webhook (https://discord.com/api/webhooks/123456/abcdef), empty string (clears webhook). POST /api/webhook/test correctly returns 400 invalid_webhook for non-Discord URL (http://169.254.169.254/). Security validation working correctly."
+
+  - task: "dev-login desactive en production (fix backdoor)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NOUVEAU (securite): POST /api/auth/dev-login retourne 404 si NODE_ENV==='production'. En local (NODE_ENV=development via 'yarn dev'), il reste actif pour permettre les tests automatiques. Tester (env local): dev-login avec bon secret fonctionne toujours (200 + cookie). NE PAS s'attendre au 404 en local (c'est attendu seulement en production/Vercel)."
+      - working: true
+        agent: "testing"
+        comment: "Dev-login guard working correctly in development environment. POST /api/auth/dev-login with correct SESSION_SECRET returns 200 with user object and obsidian_session cookie (verified). POST /api/auth/dev-login with wrong secret returns 403 (verified). In local development (NODE_ENV=development), dev-login remains active for automated testing as expected. The 404 guard only applies in production (NODE_ENV=production)."
+
 frontend:
   - task: "Landing + Dashboard + Admin UI"
     implemented: true
-    working: "NA"
+    working: true
     file: "app/page.js"
     stuck_count: 0
     priority: "high"
@@ -297,11 +342,14 @@ frontend:
       - working: "NA"
         agent: "main"
         comment: "Landing verifie visuellement (rendu OK). Dashboard/Admin non testes automatiquement. Ne pas tester le frontend sans accord utilisateur."
+      - working: true
+        agent: "testing"
+        comment: "COMPREHENSIVE UI TESTING COMPLETE - ALL SCENARIOS PASSED. (1) STATS TAB: Verified Stats tab exists between Statut and Configuration with bar-chart icon. All 4 stat cards render correctly (Detections totales, Dernieres 24h, 7 derniers jours, Joueurs uniques). Empty state message displays when no detections. Created 4 test detections, clicked Rafraichir, verified all charts render: area chart 'Detections (14 derniers jours)', bar charts 'Par type de detection' and 'Par sanction', and 'Top joueurs signales' list. (2) INTEGRATION ROBLOX - FREEMIUM: Verified 'Cle API' card visible. CRITICAL PASS: Lua code Textarea NOT shown for non-admin user (correct behavior). 'Script Roblox' card displays with message that module is provided by admin. 'Copier le script' button NOT present (correct). (3) INTEGRATION ROBLOX - ADMIN: Verified Admin tab visible for admin user. Stats tab also visible. CRITICAL PASS: 'Script Roblox (module parametre)' card displays WITH 'Admin' badge, Lua code Textarea IS shown with full script (contains 'local HttpService'), and 'Copier le script' button IS present (correct). All authorization checks working correctly. Screenshots captured for all scenarios."
 
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -319,3 +367,9 @@ agent_communication:
     message: "NOUVELLES FONCTIONNALITES a tester (migration Supabase faite: colonnes last_sync/last_place_id/last_job_id/embed_config sur profiles + table detections; cle secrete Supabase mise a jour). Utilisez dev-login (secret=SESSION_SECRET de /app/.env) pour creer un compte actif avec un api_key connu. Tests: (1) STATUT: GET /api/roblox/config?key=<apikey>&place_id=123&job_id=abc, puis GET /api/config (cookie du meme user) => last_sync recent, last_place_id='123', last_job_id='abc', online=true. (2) DETECTIONS: POST /api/roblox/detection (header x-api-key) body {player_name,player_id,detection,message,sanction,place_id,job_id} => {ok:true, webhook_sent:false si pas de webhook}. Puis GET /api/detections (cookie) liste la detection. Tester filtres ?type= et ?player=. NE PAS mettre de vraie URL webhook. (3) EMBED: PUT /api/config (cookie) body {embed_config:{title:'X {detection}',color:255,footer:'F',show_reason:false}} => 200; GET /api/config renvoie embed_config fusionne (show_player/show_server defaut true). (4) Regression: verrouillage rang + endpoint roblox OK. Erreurs roblox/detection: 400 sans cle, 401 cle invalide."
   - agent: "testing"
     message: "NEW FEATURES TESTING COMPLETE - ALL TESTS PASSED (9/9). Tested: (1) Live Status: roblox/config updates last_sync/last_place_id/last_job_id, GET /api/config returns online=true when last_sync < 5min - WORKING for both Freemium and Premium. (2) Detections: POST /api/roblox/detection creates detection with {ok:true, id, webhook_sent:false}, GET /api/detections lists detections, filters ?type= and ?player= work correctly, error cases (400 without key, 401 invalid key) verified - WORKING for both ranks. (3) Embed Customization: PUT /api/config merges embed_config, GET /api/config returns merged config with defaults preserved - WORKING for both ranks. (4) Regression: Rank locking still works (Freemium cannot save Premium params), roblox/config endpoint still works - VERIFIED. All backend features fully functional."
+  - agent: "main"
+    message: "NOUVELLES TACHES (securite + stats) a tester. Utilisez dev-login (secret=SESSION_SECRET de /app/.env, NODE_ENV=development en local donc dev-login FONCTIONNE) pour creer des comptes actifs avec api_key connu. (A) STATS: creer plusieurs detections via POST /api/roblox/detection (x-api-key) avec differents detection_type (ex: fly, speed), sanction (ex: kick, ban) et player_name, puis GET /api/stats (cookie) => verifier {total, last24h, last7d, unique_players, by_type, by_sanction, top_players (trie desc), timeline (14 entrees)}. 401 sans cookie. (B) SSRF WEBHOOK: PUT /api/config avec webhook_url='http://169.254.169.254/latest/meta-data/' => 400 invalid_webhook; 'http://localhost:3000/x' => 400; 'https://discord.com/api/webhooks/123/abc' => 200; '' (vide) => 200 (efface). POST /api/webhook/test avec un webhook non-Discord => 400 invalid_webhook. NE PAS utiliser de vraie URL webhook Discord fonctionnelle. (C) DEV-LOGIN GUARD: en local NODE_ENV=development => dev-login doit TOUJOURS marcher (200). Le 404 n'arrive qu'en production. (D) Regression: verifier que les tests precedents passent toujours (config, detections, roblox/config, rank locking)."
+  - agent: "testing"
+    message: "SECURITY + STATS TESTING COMPLETE - ALL TESTS PASSED (4/4 test suites, 100% success). (A) STATS ENDPOINT: GET /api/stats returns 401 without cookie ✓. Created 5 detections with varied detection_type (fly x3, speed, noclip), sanction (kick x3, ban x2), player_name (Bob x2, Alice x2, Charlie). GET /api/stats returned correct aggregations: total=5, last24h=5, last7d=5, unique_players=3, by_type sorted desc (fly count=3), by_sanction (2 entries), top_players sorted desc (Alice/Bob both count=2), timeline exactly 14 entries with today count=5 ✓. (B) SSRF WEBHOOK VALIDATION: All security checks passed - blocked AWS metadata (169.254.169.254), localhost, non-Discord hosts; accepted valid Discord webhooks and empty string; POST /api/webhook/test blocked invalid webhooks ✓. (C) DEV-LOGIN GUARD: Works correctly in development (200 with valid secret, 403 with wrong secret) ✓. (D) REGRESSION: All previously working endpoints verified - GET /api/config (200), POST /api/roblox/detection (200 with key, 400 without, 401 invalid), GET /api/roblox/config (200), rank locking (Freemium cannot save Premium param detection.coreuiv2) ✓. ALL 15 BACKEND TASKS NOW WORKING."
+  - agent: "testing"
+    message: "FRONTEND UI TESTING COMPLETE - ALL 3 SCENARIOS PASSED (100% success). Tested comprehensive UI scenarios as requested: (1) STATS TAB: Verified Stats tab exists between Statut and Configuration tabs with bar-chart icon. All 4 stat cards render correctly. Empty state message displays when no detections. Created 4 test detections, clicked Rafraichir button, verified all charts render correctly (area chart for timeline, bar charts for detection types and sanctions, top players list). (2) INTEGRATION ROBLOX - FREEMIUM USER: CRITICAL PASS - Lua code Textarea NOT shown for non-admin user (correct authorization). 'Cle API' card visible, 'Script Roblox' card displays message that module is provided by admin, 'Copier le script' button NOT present (correct). (3) INTEGRATION ROBLOX - ADMIN USER: CRITICAL PASS - Lua code Textarea IS shown for admin user with full Lua script (contains 'local HttpService'). 'Script Roblox (module parametre)' card displays WITH 'Admin' badge, 'Copier le script' button IS present (correct). Admin tab visible in tab bar. Stats tab also visible for admin. All authorization checks working correctly. Screenshots captured for all scenarios. UI is in French as expected. ALL FRONTEND FEATURES WORKING."

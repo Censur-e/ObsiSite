@@ -25,7 +25,11 @@ import {
   Shield, ShieldCheck, Lock, Zap, Eye, EyeOff, Copy, RefreshCw, Send, Plus, Trash2, Pencil,
   Crown, Gauge, Webhook, Code2, Users, SlidersHorizontal, LogOut, Clock, Sparkles, Github,
   Activity, Bell, MessageSquare, Wifi, WifiOff, Filter, Palette, RotateCw,
+  BarChart3, TrendingUp, Users2, Ban,
 } from 'lucide-react'
+import {
+  ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
+} from 'recharts'
 
 const HERO_IMG = 'https://images.unsplash.com/photo-1563089145-599997674d42?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmt8ZW58MHx8fHB1cnBsZXwxNzg4OTg5OTcwfDA&ixlib=rb-4.1.0&q=85'
 const FEATURE_IMG = 'https://images.unsplash.com/photo-1602042808032-fca7e25659cf?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODl8MHwxfHNlYXJjaHwxfHxkaWdpdGFsJTIwc2hpZWxkfGVufDB8fHxwdXJwbGV8MTc4ODk4OTk2MXww&ixlib=rb-4.1.0&q=85'
@@ -802,6 +806,155 @@ function DetectionsTab() {
   )
 }
 
+/* ----------------------------------------------------------------- STATS TAB */
+const CHART_COLORS = ['#a855f7', '#8b5cf6', '#6366f1', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#84cc16', '#f97316']
+
+function StatCard({ icon: Icon, label, value, hint }) {
+  return (
+    <Card className="bg-card/60 border-border">
+      <CardContent className="pt-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+            <Icon className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <div className="text-2xl font-display font-bold leading-none">{value}</div>
+            <div className="text-xs text-muted-foreground mt-1">{label}</div>
+          </div>
+        </div>
+        {hint && <p className="text-[11px] text-muted-foreground mt-3">{hint}</p>}
+      </CardContent>
+    </Card>
+  )
+}
+
+function StatsTab() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => {
+    setLoading(true)
+    try { const d = await api('/stats'); setData(d) } catch (e) { toast.error(e.message) } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  if (loading && !data) return <p className="text-muted-foreground text-sm">Chargement des statistiques...</p>
+
+  const empty = !data || data.total === 0
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-display text-lg font-bold flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" /> Statistiques</h2>
+          <p className="text-sm text-muted-foreground">Analyse des detections de votre anticheat.</p>
+        </div>
+        <Button variant="outline" onClick={load}><RotateCw className="w-4 h-4 mr-2" />Rafraichir</Button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={Shield} label="Detections totales" value={data?.total ?? 0} />
+        <StatCard icon={TrendingUp} label="Dernieres 24h" value={data?.last24h ?? 0} hint="Sur les 24 dernieres heures" />
+        <StatCard icon={Clock} label="7 derniers jours" value={data?.last7d ?? 0} />
+        <StatCard icon={Users2} label="Joueurs uniques" value={data?.unique_players ?? 0} hint="Signales au moins une fois" />
+      </div>
+
+      {empty ? (
+        <Card className="bg-card/60 border-border">
+          <CardContent className="text-center py-16 text-muted-foreground">
+            <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p>Aucune donnee a afficher pour le moment.</p>
+            <p className="text-xs mt-1">Les statistiques apparaitront des que votre script signalera des detections.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card className="bg-card/60 border-border">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="w-5 h-5 text-primary" /> Detections (14 derniers jours)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={data.timeline} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="gradDet" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.5} />
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" vertical={false} />
+                  <XAxis dataKey="date" tickFormatter={(v) => v.slice(5)} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #ffffff22', borderRadius: 8, fontSize: 12 }} labelStyle={{ color: '#fff' }} />
+                  <Area type="monotone" dataKey="count" name="Detections" stroke="#a855f7" fill="url(#gradDet)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            <Card className="bg-card/60 border-border">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Filter className="w-5 h-5 text-primary" /> Par type de detection</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={Math.max(180, (data.by_type?.length || 1) * 38)}>
+                  <BarChart data={data.by_type} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={110} tick={{ fill: '#d4d4d8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{ fill: '#ffffff08' }} contentStyle={{ background: '#18181b', border: '1px solid #ffffff22', borderRadius: 8, fontSize: 12 }} />
+                    <Bar dataKey="count" name="Detections" radius={[0, 4, 4, 0]}>
+                      {data.by_type.map((e, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card/60 border-border">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Ban className="w-5 h-5 text-primary" /> Par sanction</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={Math.max(180, (data.by_sanction?.length || 1) * 38)}>
+                  <BarChart data={data.by_sanction} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff12" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis type="category" dataKey="name" width={90} tick={{ fill: '#d4d4d8', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip cursor={{ fill: '#ffffff08' }} contentStyle={{ background: '#18181b', border: '1px solid #ffffff22', borderRadius: 8, fontSize: 12 }} />
+                    <Bar dataKey="count" name="Sanctions" radius={[0, 4, 4, 0]}>
+                      {data.by_sanction.map((e, i) => <Cell key={i} fill={e.name === 'ban' ? '#ef4444' : CHART_COLORS[i % CHART_COLORS.length]} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="bg-card/60 border-border">
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Users2 className="w-5 h-5 text-primary" /> Top joueurs signales</CardTitle></CardHeader>
+            <CardContent>
+              {data.top_players?.length === 0 ? <p className="text-sm text-muted-foreground">Aucun joueur.</p> : (
+                <div className="space-y-2">
+                  {data.top_players.map((p, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-6 text-center text-xs font-mono text-muted-foreground">#{i + 1}</div>
+                      <div className="flex-1 font-medium truncate">{p.name}</div>
+                      <div className="w-40 hidden sm:block">
+                        <div className="h-2 rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(p.count / data.top_players[0].count) * 100}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                        </div>
+                      </div>
+                      <Badge variant="secondary">{p.count}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
+  )
+}
+
 /* ----------------------------------------------------------------- EMBED TAB */
 function intToHex(n) {
   const v = Number(n) || 0
@@ -915,6 +1068,7 @@ function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, 
         <Tabs defaultValue="status">
           <TabsList className="mb-6 flex-wrap h-auto">
             <TabsTrigger value="status"><Activity className="w-4 h-4 mr-2" />Statut</TabsTrigger>
+            <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-2" />Stats</TabsTrigger>
             <TabsTrigger value="config"><SlidersHorizontal className="w-4 h-4 mr-2" />Configuration</TabsTrigger>
             <TabsTrigger value="detections"><Bell className="w-4 h-4 mr-2" />Detections</TabsTrigger>
             <TabsTrigger value="webhook"><Webhook className="w-4 h-4 mr-2" />Webhook</TabsTrigger>
@@ -925,6 +1079,9 @@ function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, 
 
           <TabsContent value="status">
             <StatusTab me={me} reloadAll={reloadAll} />
+          </TabsContent>
+          <TabsContent value="stats">
+            <StatsTab />
           </TabsContent>
           <TabsContent value="config">
             <ConfigTab me={me} params={params} config={config} onSaved={reloadAll} />

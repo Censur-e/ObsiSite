@@ -59,6 +59,18 @@ function isLocked(param, profile) {
   return param.min_rank === 'Premium' && profile.rank !== 'Premium'
 }
 
+// Anti-SSRF : n'autorise que les vraies URLs de webhook Discord (https + hote Discord + chemin /api/webhooks/)
+const DISCORD_WEBHOOK_HOSTS = ['discord.com', 'discordapp.com', 'canary.discord.com', 'ptb.discord.com']
+function isValidDiscordWebhook(u) {
+  if (typeof u !== 'string' || u.trim() === '') return false
+  let parsed
+  try { parsed = new URL(u.trim()) } catch { return false }
+  if (parsed.protocol !== 'https:') return false
+  if (!DISCORD_WEBHOOK_HOSTS.includes(parsed.hostname.toLowerCase())) return false
+  if (!parsed.pathname.startsWith('/api/webhooks/')) return false
+  return true
+}
+
 function buildRobloxConfig(params, profile) {
   const out = {}
   for (const p of params) {
@@ -240,6 +252,14 @@ async function handleGET(request, route, url) {
     return json({ detections })
   }
 
+  if (route === '/stats') {
+    const profile = await requireProfile(request)
+    if (!profile) return json({ error: 'unauthorized' }, 401)
+    const targetId = (profile.is_admin && url.searchParams.get('profile_id')) || profile.id
+    const rows = await listDetections(targetId, { limit: 1000 })
+    return json(computeStats(rows))
+  }
+
   if (route === '/admin/users') {
     const profile = await requireProfile(request)
     if (!profile || !profile.is_admin) return json({ error: 'forbidden' }, 403)
@@ -262,8 +282,10 @@ async function handlePOST(request, route, url) {
     return res
   }
 
-  // Test-only login (gated by server secret) to allow automated backend testing
+  // Test-only login (gated by server secret) to allow automated backend testing.
+  // Desactive en production (Vercel) pour supprimer le backdoor admin.
   if (route === '/auth/dev-login') {
+    if (process.env.NODE_ENV === 'production') return json({ error: 'not_found' }, 404)
     const body = await request.json().catch(() => ({}))
     if (!body.secret || body.secret !== process.env.SESSION_SECRET) return json({ error: 'forbidden' }, 403)
     let profile = await getProfileByDiscordId(body.discord_id)
@@ -319,7 +341,7 @@ async function handlePOST(request, route, url) {
       })
     } catch (e) {}
     let sent = false
-    if (profile.webhook_url) {
+    if (isValidDiscordWebhook(profile.webhook_url)) {
       try {
         const r = await fetch(profile.webhook_url, {
           method: 'POST',
@@ -346,6 +368,7 @@ async function handlePOST(request, route, url) {
     const body = await request.json().catch(() => ({}))
     const wh = body.webhook_url || profile.webhook_url
     if (!wh) return json({ error: 'no_webhook' }, 400)
+    if (!isValidDiscordWebhook(wh)) return json({ error: 'invalid_webhook' }, 400)
     const payload = {
       embeds: [{
         title: '🚨 Alerte Anti-Cheat : Test (TEST)',
@@ -407,7 +430,11 @@ async function handlePUT(request, route) {
       }
     }
     const patch = { config: newConfig }
-    if (typeof body.webhook_url === 'string') patch.webhook_url = body.webhook_url
+    if (typeof body.webhook_url === 'string') {
+      const wh = body.webhook_url.trim()
+      if (wh !== '' && !isValidDiscordWebhook(wh)) return json({ error: 'invalid_webhook' }, 400)
+      patch.webhook_url = wh
+    }
     if (body.embed_config && typeof body.embed_config === 'object') {
       patch.embed_config = { ...DEFAULT_EMBED(), ...(profile.embed_config || {}), ...body.embed_config }
     }
@@ -480,6 +507,62 @@ async function robloxConfig(request, url) {
     })
   } catch (e) { /* non bloquant */ }
   return json(config)
+}
+
+function computeStats(rows) {
+  const list = Array.isArray(rows) ? rows : []
+  const now = Date.now()
+  const DAY = 24 * 60 * 60 * 1000
+  const total = list.length
+
+  const byTypeMap = {}
+  const bySanctionMap = {}
+  const byPlayerMap = {}
+  let last24h = 0
+  let last7d = 0
+
+  for (const d of list) {
+    const t = d.detection_type || 'inconnu'
+    byTypeMap[t] = (byTypeMap[t] || 0) + 1
+    const s = d.sanction || 'inconnu'
+    bySanctionMap[s] = (bySanctionMap[s] || 0) + 1
+    const p = d.player_name || 'inconnu'
+    byPlayerMap[p] = (byPlayerMap[p] || 0) + 1
+    const ts = d.created_at ? new Date(d.created_at).getTime() : 0
+    if (ts && now - ts < DAY) last24h += 1
+    if (ts && now - ts < 7 * DAY) last7d += 1
+  }
+
+  // Timeline des 14 derniers jours (du plus ancien au plus recent)
+  const days = []
+  for (let i = 13; i >= 0; i--) {
+    const day = new Date(now - i * DAY)
+    const key = day.toISOString().slice(0, 10)
+    days.push({ date: key, count: 0 })
+  }
+  const dayIndex = {}
+  days.forEach((d, i) => (dayIndex[d.date] = i))
+  for (const d of list) {
+    if (!d.created_at) continue
+    const key = new Date(d.created_at).toISOString().slice(0, 10)
+    if (dayIndex[key] !== undefined) days[dayIndex[key]].count += 1
+  }
+
+  const toSorted = (map) =>
+    Object.entries(map)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+
+  return {
+    total,
+    last24h,
+    last7d,
+    unique_players: Object.keys(byPlayerMap).length,
+    by_type: toSorted(byTypeMap),
+    by_sanction: toSorted(bySanctionMap),
+    top_players: toSorted(byPlayerMap).slice(0, 10),
+    timeline: days,
+  }
 }
 
 function sanitizeProfile(p) {
