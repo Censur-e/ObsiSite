@@ -10,6 +10,8 @@ import {
   insertParameter,
   updateParameter,
   deleteParameter,
+  insertDetection,
+  listDetections,
 } from '@/lib/supabaseRest'
 import { signSession, verifySession, newApiKey } from '@/lib/session'
 
@@ -70,6 +72,53 @@ function buildRobloxConfig(params, profile) {
   out.webhook_url = profile.webhook_url || ''
   out.rank = profile.rank || 'Freemium'
   return out
+}
+
+const ONLINE_THRESHOLD_MS = 5 * 60 * 1000
+
+function DEFAULT_EMBED() {
+  return {
+    title: '🚨 Alerte Anti-Cheat : {detection} ({sanction})',
+    color: 15158332,
+    footer: 'Obsidian Anticheat',
+    show_player: true,
+    show_server: true,
+    show_reason: true,
+  }
+}
+
+function buildEmbed(profile, d) {
+  const cfg = { ...DEFAULT_EMBED(), ...(profile.embed_config || {}) }
+  const title = String(cfg.title || '')
+    .replaceAll('{detection}', d.detection_type || '?')
+    .replaceAll('{sanction}', d.sanction || '?')
+    .replaceAll('{player}', d.player_name || '?')
+  const fields = []
+  if (cfg.show_player !== false) {
+    fields.push({
+      name: 'Joueur',
+      value: `**Nom :** \`${d.player_name || '?'}\`\n**UserId :** [${d.player_id || '?'}](https://www.roblox.com/users/${d.player_id || 0}/profile)`,
+      inline: false,
+    })
+  }
+  if (cfg.show_server !== false) {
+    fields.push({
+      name: 'Informations serveur',
+      value: `**PlaceId :** \`${d.place_id || '?'}\`\n**JobId :** \`${d.job_id || 'Studio'}\``,
+      inline: false,
+    })
+  }
+  if (cfg.show_reason !== false) {
+    fields.push({ name: 'Raison', value: '```' + (d.message || '') + '```', inline: false })
+  }
+  return {
+    embeds: [{
+      title: title || 'Alerte Anti-Cheat',
+      color: Number(cfg.color) || 15158332,
+      fields,
+      footer: { text: (cfg.footer || 'Obsidian Anticheat') + ' - ' + new Date().toLocaleDateString('fr-FR') },
+    }],
+  }
 }
 
 // ---------------------------------------------------------------- GET
@@ -147,7 +196,8 @@ async function handleGET(request, route, url) {
       return res
     } catch (e) {
       console.error('CALLBACK ERROR:', e?.message, e?.status, JSON.stringify(e?.data))
-      return NextResponse.redirect(new URL('/?error=db', BASE_URL))
+      const reason = encodeURIComponent(String(e?.message || 'unknown').slice(0, 120))
+      return NextResponse.redirect(new URL('/?error=db&reason=' + reason, BASE_URL))
     }
   }
 
@@ -167,7 +217,27 @@ async function handleGET(request, route, url) {
   if (route === '/config') {
     const profile = await requireProfile(request)
     if (!profile) return json({ error: 'unauthorized' }, 401)
-    return json({ config: profile.config || {}, webhook_url: profile.webhook_url || '', rank: profile.rank, status: profile.status })
+    return json({
+      config: profile.config || {},
+      webhook_url: profile.webhook_url || '',
+      rank: profile.rank,
+      status: profile.status,
+      embed_config: { ...DEFAULT_EMBED(), ...(profile.embed_config || {}) },
+      last_sync: profile.last_sync || null,
+      last_place_id: profile.last_place_id || null,
+      last_job_id: profile.last_job_id || null,
+      online: profile.last_sync ? (Date.now() - new Date(profile.last_sync).getTime() < ONLINE_THRESHOLD_MS) : false,
+    })
+  }
+
+  if (route === '/detections') {
+    const profile = await requireProfile(request)
+    if (!profile) return json({ error: 'unauthorized' }, 401)
+    const type = url.searchParams.get('type') || undefined
+    const player = url.searchParams.get('player') || undefined
+    const targetId = (profile.is_admin && url.searchParams.get('profile_id')) || profile.id
+    const detections = await listDetections(targetId, { type, player, limit: 200 })
+    return json({ detections })
   }
 
   if (route === '/admin/users') {
@@ -219,6 +289,47 @@ async function handlePOST(request, route, url) {
 
   if (route === '/roblox/config') {
     return await robloxConfig(request, url)
+  }
+
+  // Roblox: signaler une detection (log + envoi webhook cote serveur)
+  if (route === '/roblox/detection') {
+    const apiKey = request.headers.get('x-api-key') || url.searchParams.get('key')
+    if (!apiKey) return json({ error: 'missing_api_key' }, 400)
+    const profile = await getProfileByApiKey(apiKey)
+    if (!profile) return json({ error: 'invalid_api_key' }, 401)
+    if (profile.status !== 'active') return json({ error: 'inactive_account' }, 403)
+    const body = await request.json().catch(() => ({}))
+    const detection = {
+      profile_id: profile.id,
+      player_name: body.player_name || body.plr || null,
+      player_id: body.player_id != null ? String(body.player_id) : null,
+      detection_type: body.detection_type || body.detection || 'inconnu',
+      sanction: body.sanction || body.type_sanction || 'kick',
+      message: body.message || body.message_kick || '',
+      place_id: body.place_id != null ? String(body.place_id) : null,
+      job_id: body.job_id || null,
+    }
+    let saved = null
+    try { saved = await insertDetection(detection) } catch (e) { console.error('detection insert', e?.message) }
+    try {
+      await updateProfile(profile.id, {
+        last_sync: new Date().toISOString(),
+        last_place_id: detection.place_id,
+        last_job_id: detection.job_id,
+      })
+    } catch (e) {}
+    let sent = false
+    if (profile.webhook_url) {
+      try {
+        const r = await fetch(profile.webhook_url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildEmbed(profile, detection)),
+        })
+        sent = r.ok
+      } catch (e) {}
+    }
+    return json({ ok: true, id: saved?.id || null, webhook_sent: sent })
   }
 
   if (route === '/integration/regenerate-key') {
@@ -297,8 +408,11 @@ async function handlePUT(request, route) {
     }
     const patch = { config: newConfig }
     if (typeof body.webhook_url === 'string') patch.webhook_url = body.webhook_url
+    if (body.embed_config && typeof body.embed_config === 'object') {
+      patch.embed_config = { ...DEFAULT_EMBED(), ...(profile.embed_config || {}), ...body.embed_config }
+    }
     const updated = await updateProfile(profile.id, patch)
-    return json({ config: updated.config, webhook_url: updated.webhook_url })
+    return json({ config: updated.config, webhook_url: updated.webhook_url, embed_config: updated.embed_config })
   }
 
   const userMatch = route.match(/^\/admin\/users\/([^/]+)$/)
@@ -355,6 +469,16 @@ async function robloxConfig(request, url) {
   if (profile.status !== 'active') return json({ error: 'inactive_account' }, 403)
   const params = await listParameters()
   const config = buildRobloxConfig(params, profile)
+  // Enregistre la derniere synchronisation (statut en direct)
+  const placeId = url.searchParams.get('place_id') || request.headers.get('x-place-id') || null
+  const jobId = url.searchParams.get('job_id') || request.headers.get('x-job-id') || null
+  try {
+    await updateProfile(profile.id, {
+      last_sync: new Date().toISOString(),
+      last_place_id: placeId,
+      last_job_id: jobId,
+    })
+  } catch (e) { /* non bloquant */ }
   return json(config)
 }
 
@@ -372,6 +496,11 @@ function sanitizeProfile(p) {
     rank: p.rank,
     api_key: p.api_key,
     webhook_url: p.webhook_url,
+    embed_config: { ...DEFAULT_EMBED(), ...(p.embed_config || {}) },
+    last_sync: p.last_sync || null,
+    last_place_id: p.last_place_id || null,
+    last_job_id: p.last_job_id || null,
+    online: p.last_sync ? (Date.now() - new Date(p.last_sync).getTime() < ONLINE_THRESHOLD_MS) : false,
     created_at: p.created_at,
   }
 }

@@ -24,6 +24,7 @@ import { toast } from 'sonner'
 import {
   Shield, ShieldCheck, Lock, Zap, Eye, EyeOff, Copy, RefreshCw, Send, Plus, Trash2, Pencil,
   Crown, Gauge, Webhook, Code2, Users, SlidersHorizontal, LogOut, Clock, Sparkles, Github,
+  Activity, Bell, MessageSquare, Wifi, WifiOff, Filter, Palette, RotateCw,
 } from 'lucide-react'
 
 const HERO_IMG = 'https://images.unsplash.com/photo-1563089145-599997674d42?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGRhcmt8ZW58MHx8fHB1cnBsZXwxNzg4OTg5OTcwfDA&ixlib=rb-4.1.0&q=85'
@@ -338,11 +339,12 @@ function IntegrationTab({ me, onKey }) {
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const script = `local HttpService = game:GetService("HttpService")
-local URL = "${origin}/api/roblox/config"
+local BASE = "${origin}/api/roblox"
 local KEY = "${key || 'VOTRE_CLE_API'}"
 local parametre = {}
+local jobid = game.JobId ~= "" and game.JobId or "Studio"
 local ok, res = pcall(function()
-	return HttpService:RequestAsync({ Url = URL, Method = "GET", Headers = { ["x-api-key"] = KEY } })
+	return HttpService:RequestAsync({ Url = BASE .. "/config?place_id=" .. game.PlaceId .. "&job_id=" .. HttpService:UrlEncode(jobid), Method = "GET", Headers = { ["x-api-key"] = KEY } })
 end)
 if ok and res.Success then
 	parametre = HttpService:JSONDecode(res.Body)
@@ -369,6 +371,16 @@ function parametre.creer_embed(plr, detection, message_kick, type_sanction)
 			}
 		}
 	}
+end
+function parametre.signaler(plr, detection, message_kick, type_sanction)
+	pcall(function()
+		HttpService:RequestAsync({
+			Url = BASE .. "/detection",
+			Method = "POST",
+			Headers = { ["x-api-key"] = KEY, ["Content-Type"] = "application/json" },
+			Body = HttpService:JSONEncode({ player_name = plr.Name, player_id = plr.UserId, detection = detection, message = message_kick, sanction = type_sanction, place_id = game.PlaceId, job_id = jobid })
+		})
+	end)
 end
 return parametre`
 
@@ -449,7 +461,7 @@ function AdminUsers() {
               <TableHead>Utilisateur</TableHead>
               <TableHead>Statut</TableHead>
               <TableHead>Rang</TableHead>
-              <TableHead className="text-right">Action</TableHead>
+              <TableHead>Script Roblox</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -484,7 +496,12 @@ function AdminUsers() {
                     </SelectContent>
                   </Select>
                 </TableCell>
-                <TableCell className="text-right"><StatusBadge status={u.status} /></TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <OnlineDot online={u.online} />
+                    <span className="text-[11px] text-muted-foreground">{u.last_sync ? timeAgo(u.last_sync) : 'jamais synchro'}</span>
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -624,8 +641,241 @@ function AdminParameters({ params, reload }) {
   )
 }
 
+function timeAgo(dateStr) {
+  if (!dateStr) return 'jamais'
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const s = Math.floor(diff / 1000)
+  if (s < 60) return `il y a ${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `il y a ${m} min`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `il y a ${h} h`
+  const d = Math.floor(h / 24)
+  return `il y a ${d} j`
+}
+
+function OnlineDot({ online }) {
+  return (
+    <span className="flex items-center gap-1.5 text-xs">
+      <span className={`w-2 h-2 rounded-full ${online ? 'bg-emerald-400 animate-pulse' : 'bg-muted-foreground/50'}`} />
+      {online ? <span className="text-emerald-400">En ligne</span> : <span className="text-muted-foreground">Hors ligne</span>}
+    </span>
+  )
+}
+
+/* ----------------------------------------------------------------- STATUS TAB */
+function StatusTab({ me, reloadAll }) {
+  const [data, setData] = useState(null)
+  const load = async () => { try { const d = await api('/config'); setData(d) } catch (e) {} }
+  useEffect(() => { load(); const i = setInterval(load, 15000); return () => clearInterval(i) }, [])
+
+  const online = data?.online
+  return (
+    <div className="grid md:grid-cols-3 gap-5 max-w-4xl">
+      <Card className={`bg-card/60 border-border ${online ? 'border-emerald-500/40' : ''}`}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            {online ? <Wifi className="w-5 h-5 text-emerald-400" /> : <WifiOff className="w-5 h-5 text-muted-foreground" />} Script Roblox
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className={`text-2xl font-display font-bold ${online ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+            {online ? 'Connecte' : 'Deconnecte'}
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Base sur la derniere synchronisation (&lt; 5 min)</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-card/60 border-border">
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Clock className="w-5 h-5 text-primary" /> Derniere synchro</CardTitle></CardHeader>
+        <CardContent>
+          <div className="text-2xl font-display font-bold">{timeAgo(data?.last_sync)}</div>
+          <p className="text-xs text-muted-foreground mt-1">{data?.last_sync ? new Date(data.last_sync).toLocaleString('fr-FR') : '—'}</p>
+        </CardContent>
+      </Card>
+      <Card className="bg-card/60 border-border">
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Activity className="w-5 h-5 text-primary" /> Serveur actif</CardTitle></CardHeader>
+        <CardContent className="text-sm space-y-1">
+          <div><span className="text-muted-foreground">PlaceId :</span> <span className="font-mono">{data?.last_place_id || '—'}</span></div>
+          <div><span className="text-muted-foreground">JobId :</span> <span className="font-mono text-xs">{data?.last_job_id || '—'}</span></div>
+        </CardContent>
+      </Card>
+      <div className="md:col-span-3">
+        <Button variant="outline" onClick={load}><RotateCw className="w-4 h-4 mr-2" />Rafraichir</Button>
+      </div>
+    </div>
+  )
+}
+
+/* ----------------------------------------------------------------- DETECTIONS TAB */
+function DetectionsTab() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [type, setType] = useState('all')
+  const [player, setPlayer] = useState('')
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (type && type !== 'all') params.set('type', type)
+      if (player) params.set('player', player)
+      const d = await api('/detections' + (params.toString() ? '?' + params.toString() : ''))
+      setRows(d.detections || [])
+    } catch (e) { toast.error(e.message) } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [type])
+
+  const types = useMemo(() => Array.from(new Set(rows.map((r) => r.detection_type).filter(Boolean))), [rows])
+
+  return (
+    <Card className="bg-card/60 border-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Bell className="w-5 h-5 text-primary" /> Historique des detections</CardTitle>
+        <CardDescription>Toutes les detections envoyees par votre script Roblox.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-muted-foreground" />
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger className="w-48"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les types</SelectItem>
+                {types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input placeholder="Rechercher un joueur..." value={player} onChange={(e) => setPlayer(e.target.value)} className="w-56" onKeyDown={(e) => e.key === 'Enter' && load()} />
+            <Button variant="outline" onClick={load}>Filtrer</Button>
+          </div>
+        </div>
+        {loading ? <p className="text-muted-foreground text-sm">Chargement...</p> : rows.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Bell className="w-10 h-10 mx-auto mb-3 opacity-40" />
+            <p>Aucune detection pour le moment.</p>
+            <p className="text-xs mt-1">Les detections apparaitront ici des que ton script les signalera.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Joueur</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Sanction</TableHead>
+                  <TableHead>Message</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{new Date(r.created_at).toLocaleString('fr-FR')}</TableCell>
+                    <TableCell>
+                      <div className="font-medium">{r.player_name || '?'}</div>
+                      <div className="text-xs text-muted-foreground font-mono">{r.player_id || ''}</div>
+                    </TableCell>
+                    <TableCell><Badge variant="secondary">{r.detection_type}</Badge></TableCell>
+                    <TableCell>{r.sanction === 'ban' ? <Badge variant="destructive">ban</Badge> : <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30">{r.sanction}</Badge>}</TableCell>
+                    <TableCell className="max-w-xs truncate text-sm text-muted-foreground">{r.message}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+/* ----------------------------------------------------------------- EMBED TAB */
+function intToHex(n) {
+  const v = Number(n) || 0
+  return '#' + v.toString(16).padStart(6, '0')
+}
+function hexToInt(hex) {
+  return parseInt(String(hex).replace('#', ''), 16) || 0
+}
+
+function EmbedTab({ initial }) {
+  const [cfg, setCfg] = useState(() => ({
+    title: '🚨 Alerte Anti-Cheat : {detection} ({sanction})',
+    color: 15158332,
+    footer: 'Obsidian Anticheat',
+    show_player: true, show_server: true, show_reason: true,
+    ...(initial || {}),
+  }))
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => setCfg((s) => ({ ...s, [k]: v }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await api('/config', { method: 'PUT', body: JSON.stringify({ embed_config: cfg }) })
+      toast.success('Embed enregistre')
+    } catch (e) { toast.error(e.message) } finally { setSaving(false) }
+  }
+
+  const previewTitle = String(cfg.title || '').replaceAll('{detection}', 'Fly').replaceAll('{sanction}', 'ban').replaceAll('{player}', 'Cheater123')
+
+  return (
+    <div className="grid md:grid-cols-2 gap-6">
+      <Card className="bg-card/60 border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Palette className="w-5 h-5 text-primary" /> Personnalisation de l'embed</CardTitle>
+          <CardDescription>Variables: {'{detection}'}, {'{sanction}'}, {'{player}'}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1"><Label>Titre</Label><Input value={cfg.title} onChange={(e) => set('title', e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label>Couleur</Label>
+            <div className="flex items-center gap-3">
+              <input type="color" value={intToHex(cfg.color)} onChange={(e) => set('color', hexToInt(e.target.value))} className="w-12 h-10 rounded-md bg-transparent border border-border cursor-pointer" />
+              <Input className="w-40 font-mono" value={intToHex(cfg.color)} onChange={(e) => set('color', hexToInt(e.target.value))} />
+            </div>
+          </div>
+          <div className="space-y-1"><Label>Footer</Label><Input value={cfg.footer} onChange={(e) => set('footer', e.target.value)} /></div>
+          <Separator />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between"><Label>Afficher le joueur</Label><Switch checked={cfg.show_player !== false} onCheckedChange={(v) => set('show_player', v)} /></div>
+            <div className="flex items-center justify-between"><Label>Afficher les infos serveur</Label><Switch checked={cfg.show_server !== false} onCheckedChange={(v) => set('show_server', v)} /></div>
+            <div className="flex items-center justify-between"><Label>Afficher la raison</Label><Switch checked={cfg.show_reason !== false} onCheckedChange={(v) => set('show_reason', v)} /></div>
+          </div>
+          <Button onClick={save} disabled={saving} className="glow">{saving ? 'Enregistrement...' : 'Enregistrer l embed'}</Button>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/60 border-border">
+        <CardHeader><CardTitle className="text-base">Apercu</CardTitle></CardHeader>
+        <CardContent>
+          <div className="rounded-md bg-[#2b2d31] p-3">
+            <div className="flex gap-3">
+              <div className="w-1 rounded-full shrink-0" style={{ backgroundColor: intToHex(cfg.color) }} />
+              <div className="flex-1 min-w-0">
+                <div className="text-white font-semibold text-sm mb-2">{previewTitle}</div>
+                {cfg.show_player !== false && (
+                  <div className="mb-2"><div className="text-[#dbdee1] text-xs font-semibold">Joueur</div><div className="text-[#dbdee1] text-xs">Nom : <span className="bg-black/30 px-1 rounded">Cheater123</span> · UserId : <span className="text-[#00a8fc]">123456</span></div></div>
+                )}
+                {cfg.show_server !== false && (
+                  <div className="mb-2"><div className="text-[#dbdee1] text-xs font-semibold">Informations serveur</div><div className="text-[#dbdee1] text-xs">PlaceId : <span className="bg-black/30 px-1 rounded">987654</span></div></div>
+                )}
+                {cfg.show_reason !== false && (
+                  <div className="mb-2"><div className="text-[#dbdee1] text-xs font-semibold">Raison</div><div className="text-[#dbdee1] text-xs bg-black/30 rounded p-1 font-mono">Fly detecte</div></div>
+                )}
+                <div className="text-[#949ba4] text-[10px] mt-2">{cfg.footer} - {new Date().toLocaleDateString('fr-FR')}</div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 /* ----------------------------------------------------------------- DASHBOARD */
-function Dashboard({ me, params, config, webhook, reloadAll, onLogout, onKey }) {
+function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, onKey }) {
   return (
     <div className="min-h-screen bg-background">
       <nav className="sticky top-0 z-40 glass border-b border-border">
@@ -635,6 +885,7 @@ function Dashboard({ me, params, config, webhook, reloadAll, onLogout, onKey }) 
             OBSIDIAN
           </div>
           <div className="flex items-center gap-3">
+            <OnlineDot online={cfgData?.online} />
             <RankBadge rank={me.rank} />
             <div className="flex items-center gap-2">
               <Avatar className="w-8 h-8"><AvatarImage src={avatarUrl(me)} /><AvatarFallback>{(me.username || '?')[0].toUpperCase()}</AvatarFallback></Avatar>
@@ -649,19 +900,31 @@ function Dashboard({ me, params, config, webhook, reloadAll, onLogout, onKey }) 
         <h1 className="font-display text-2xl font-bold mb-1">Tableau de bord</h1>
         <p className="text-muted-foreground text-sm mb-6">Configurez votre anticheat Obsidian a distance.</p>
 
-        <Tabs defaultValue="config">
+        <Tabs defaultValue="status">
           <TabsList className="mb-6 flex-wrap h-auto">
+            <TabsTrigger value="status"><Activity className="w-4 h-4 mr-2" />Statut</TabsTrigger>
             <TabsTrigger value="config"><SlidersHorizontal className="w-4 h-4 mr-2" />Configuration</TabsTrigger>
+            <TabsTrigger value="detections"><Bell className="w-4 h-4 mr-2" />Detections</TabsTrigger>
             <TabsTrigger value="webhook"><Webhook className="w-4 h-4 mr-2" />Webhook</TabsTrigger>
+            <TabsTrigger value="embed"><MessageSquare className="w-4 h-4 mr-2" />Embed</TabsTrigger>
             <TabsTrigger value="integration"><Code2 className="w-4 h-4 mr-2" />Integration Roblox</TabsTrigger>
             {me.is_admin && <TabsTrigger value="admin"><Crown className="w-4 h-4 mr-2" />Admin</TabsTrigger>}
           </TabsList>
 
+          <TabsContent value="status">
+            <StatusTab me={me} reloadAll={reloadAll} />
+          </TabsContent>
           <TabsContent value="config">
             <ConfigTab me={me} params={params} config={config} onSaved={reloadAll} />
           </TabsContent>
+          <TabsContent value="detections">
+            <DetectionsTab />
+          </TabsContent>
           <TabsContent value="webhook">
             <WebhookTab initial={webhook} />
+          </TabsContent>
+          <TabsContent value="embed">
+            <EmbedTab initial={cfgData?.embed_config} />
           </TabsContent>
           <TabsContent value="integration">
             <IntegrationTab me={me} onKey={onKey} />
@@ -690,6 +953,7 @@ export default function App() {
   const [params, setParams] = useState([])
   const [config, setConfig] = useState({})
   const [webhook, setWebhook] = useState('')
+  const [cfgData, setCfgData] = useState({})
 
   const loadAll = async () => {
     try {
@@ -700,6 +964,7 @@ export default function App() {
         setParams(pr.parameters || [])
         setConfig(cf.config || {})
         setWebhook(cf.webhook_url || '')
+        setCfgData(cf || {})
       }
     } catch (e) {
       setMe(null)
@@ -707,8 +972,10 @@ export default function App() {
   }
 
   useEffect(() => {
-    const err = new URLSearchParams(window.location.search).get('error')
-    if (err) toast.error('Erreur de connexion Discord: ' + err)
+    const sp = new URLSearchParams(window.location.search)
+    const err = sp.get('error')
+    const reason = sp.get('reason')
+    if (err) toast.error('Erreur de connexion: ' + err + (reason ? ' — ' + decodeURIComponent(reason) : ''), { duration: 8000 })
     if (err) window.history.replaceState({}, '', '/')
     loadAll()
   }, [])
@@ -735,6 +1002,7 @@ export default function App() {
       params={params}
       config={config}
       webhook={webhook}
+      cfgData={cfgData}
       reloadAll={loadAll}
       onLogout={logout}
       onKey={(k) => setMe((m) => ({ ...m, api_key: k }))}
