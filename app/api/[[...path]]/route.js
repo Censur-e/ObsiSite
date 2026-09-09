@@ -185,6 +185,31 @@ async function handlePOST(request, route, url) {
     return res
   }
 
+  // Test-only login (gated by server secret) to allow automated backend testing
+  if (route === '/auth/dev-login') {
+    const body = await request.json().catch(() => ({}))
+    if (!body.secret || body.secret !== process.env.SESSION_SECRET) return json({ error: 'forbidden' }, 403)
+    let profile = await getProfileByDiscordId(body.discord_id)
+    if (!profile) {
+      profile = await insertProfile({
+        discord_id: String(body.discord_id),
+        username: body.username || 'tester',
+        global_name: body.global_name || body.username || 'Tester',
+        avatar: null,
+        email: body.email || null,
+        is_admin: !!body.is_admin,
+        status: body.status || 'active',
+        rank: body.rank !== undefined ? body.rank : 'Freemium',
+        api_key: body.api_key || newApiKey(),
+        config: {},
+      })
+    }
+    const token = signSession({ id: profile.id, discord_id: profile.discord_id, iat: Date.now() })
+    const res = json({ user: sanitizeProfile(profile) })
+    res.cookies.set(COOKIE, token, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 7 })
+    return res
+  }
+
   if (route === '/roblox/config') {
     return await robloxConfig(request, url)
   }
