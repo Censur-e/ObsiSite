@@ -413,16 +413,28 @@ return parametre`
         </CardContent>
       </Card>
 
-      <Card className="bg-card/60 border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Code2 className="w-5 h-5 text-primary" /> Script Roblox (module parametre)</CardTitle>
-          <CardDescription>Collez ce ModuleScript dans votre jeu. Il recupere automatiquement votre configuration.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Textarea readOnly value={script} className="font-mono text-xs h-72 bg-black/40" />
-          <Button variant="outline" onClick={() => copy(script, 'Script copie')}><Copy className="w-4 h-4 mr-2" />Copier le script</Button>
-        </CardContent>
-      </Card>
+      {me.is_admin ? (
+        <Card className="bg-card/60 border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Code2 className="w-5 h-5 text-primary" /> Script Roblox (module parametre) <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30">Admin</span></CardTitle>
+            <CardDescription>Module reserve a l'administrateur. Il recupere automatiquement la configuration. Ne le partagez pas publiquement.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Textarea readOnly value={script} className="font-mono text-xs h-72 bg-black/40" />
+            <Button variant="outline" onClick={() => copy(script, 'Script copie')}><Copy className="w-4 h-4 mr-2" />Copier le script</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-card/60 border-border">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Code2 className="w-5 h-5 text-primary" /> Script Roblox</CardTitle>
+            <CardDescription>Le module anticheat est fourni par l'administrateur Obsidian. Renseignez simplement votre cle API ci-dessus dans le script qui vous a ete remis.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">Pour obtenir le module ou de l'aide a l'installation, contactez l'equipe Obsidian. Votre cle API suffit pour lier votre jeu a cette configuration.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
