@@ -75,16 +75,13 @@ function buildRobloxConfig(params, profile) {
 // ---------------------------------------------------------------- GET
 async function handleGET(request, route, url) {
   if (route === '/auth/discord/login') {
-    const state = Math.random().toString(36).slice(2)
-    const authorize = new URL('https://discord.com/oauth2/authorize')
-    authorize.searchParams.set('client_id', DISCORD_CLIENT_ID)
-    authorize.searchParams.set('response_type', 'code')
-    authorize.searchParams.set('redirect_uri', DISCORD_REDIRECT_URI)
-    authorize.searchParams.set('scope', 'identify email')
-    authorize.searchParams.set('state', state)
-    const res = NextResponse.redirect(authorize.toString())
-    res.cookies.set('obsidian_state', state, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 600 })
-    return res
+    const authorize =
+      'https://discord.com/oauth2/authorize' +
+      `?client_id=${DISCORD_CLIENT_ID}` +
+      '&response_type=code' +
+      `&redirect_uri=${encodeURIComponent(DISCORD_REDIRECT_URI)}` +
+      '&scope=email+identify'
+    return NextResponse.redirect(authorize)
   }
 
   if (route === '/auth/discord/callback') {
