@@ -12,6 +12,10 @@ import {
   deleteParameter,
   insertDetection,
   listDetections,
+  listBlacklist,
+  getBlacklistEntry,
+  insertBlacklist,
+  deleteBlacklist,
 } from '@/lib/supabaseRest'
 import { signSession, verifySession, newApiKey } from '@/lib/session'
 
@@ -260,6 +264,14 @@ async function handleGET(request, route, url) {
     return json(computeStats(rows))
   }
 
+  if (route === '/blacklist') {
+    const profile = await requireProfile(request)
+    if (!profile) return json({ error: 'unauthorized' }, 401)
+    let list = []
+    try { list = await listBlacklist(profile.id) } catch (e) { list = [] }
+    return json({ blacklist: list || [] })
+  }
+
   if (route === '/admin/users') {
     const profile = await requireProfile(request)
     if (!profile || !profile.is_admin) return json({ error: 'forbidden' }, 403)
@@ -333,6 +345,21 @@ async function handlePOST(request, route, url) {
     }
     let saved = null
     try { saved = await insertDetection(detection) } catch (e) { console.error('detection insert', e?.message) }
+    // Synchronisation auto: une sanction "ban" ajoute le joueur a la blacklist globale du client
+    if (detection.sanction === 'ban' && detection.player_id) {
+      try {
+        const exists = await getBlacklistEntry(profile.id, detection.player_id)
+        if (!exists) {
+          await insertBlacklist({
+            profile_id: profile.id,
+            player_id: detection.player_id,
+            player_name: detection.player_name,
+            reason: detection.detection_type ? `Auto: ${detection.detection_type}` : 'Auto (ban)',
+            source: 'auto',
+          })
+        }
+      } catch (e) { /* non bloquant (table absente ou doublon) */ }
+    }
     try {
       await updateProfile(profile.id, {
         last_sync: new Date().toISOString(),
@@ -386,6 +413,28 @@ async function handlePOST(request, route, url) {
       return json({ ok: true })
     } catch (e) {
       return json({ error: 'webhook_failed' }, 400)
+    }
+  }
+
+  if (route === '/blacklist') {
+    const profile = await requireProfile(request)
+    if (!profile) return json({ error: 'unauthorized' }, 401)
+    const body = await request.json().catch(() => ({}))
+    const playerId = body.player_id != null ? String(body.player_id).trim() : ''
+    if (!playerId) return json({ error: 'player_id_required' }, 400)
+    try {
+      const exists = await getBlacklistEntry(profile.id, playerId)
+      if (exists) return json({ error: 'already_blacklisted', entry: exists }, 409)
+      const entry = await insertBlacklist({
+        profile_id: profile.id,
+        player_id: playerId,
+        player_name: body.player_name ? String(body.player_name).slice(0, 120) : null,
+        reason: body.reason ? String(body.reason).slice(0, 300) : null,
+        source: 'manuel',
+      })
+      return json({ entry })
+    } catch (e) {
+      return json({ error: 'blacklist_error' }, 500)
     }
   }
 
@@ -478,6 +527,14 @@ async function handlePUT(request, route) {
 
 // ---------------------------------------------------------------- DELETE
 async function handleDELETE(request, route) {
+  const blMatch = route.match(/^\/blacklist\/([^/]+)$/)
+  if (blMatch) {
+    const profile = await requireProfile(request)
+    if (!profile) return json({ error: 'unauthorized' }, 401)
+    try { await deleteBlacklist(profile.id, blMatch[1]) } catch (e) { return json({ error: 'blacklist_error' }, 500) }
+    return json({ ok: true })
+  }
+
   const paramMatch = route.match(/^\/admin\/parameters\/([^/]+)$/)
   if (paramMatch) {
     const profile = await requireProfile(request)
@@ -496,6 +553,14 @@ async function robloxConfig(request, url) {
   if (profile.status !== 'active') return json({ error: 'inactive_account' }, 403)
   const params = await listParameters()
   const config = buildRobloxConfig(params, profile)
+  // Blacklist globale du client (non bloquant si la table n'existe pas encore)
+  try {
+    const bl = await listBlacklist(profile.id)
+    config.blacklist = (bl || []).map((b) => {
+      const n = Number(b.player_id)
+      return Number.isFinite(n) ? n : b.player_id
+    })
+  } catch (e) { config.blacklist = [] }
   // Enregistre la derniere synchronisation (statut en direct)
   const placeId = url.searchParams.get('place_id') || request.headers.get('x-place-id') || null
   const jobId = url.searchParams.get('job_id') || request.headers.get('x-job-id') || null

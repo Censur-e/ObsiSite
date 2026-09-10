@@ -348,43 +348,57 @@ local KEY = "${key || 'VOTRE_CLE_API'}"
 local parametre = {}
 local jobid = game.JobId ~= "" and game.JobId or "Studio"
 local ok, res = pcall(function()
-	return HttpService:RequestAsync({ Url = BASE .. "/config?place_id=" .. game.PlaceId .. "&job_id=" .. HttpService:UrlEncode(jobid), Method = "GET", Headers = { ["x-api-key"] = KEY } })
+        return HttpService:RequestAsync({ Url = BASE .. "/config?place_id=" .. game.PlaceId .. "&job_id=" .. HttpService:UrlEncode(jobid), Method = "GET", Headers = { ["x-api-key"] = KEY } })
 end)
 if ok and res.Success then
-	parametre = HttpService:JSONDecode(res.Body)
+        parametre = HttpService:JSONDecode(res.Body)
 end
 parametre.core_remove = {
-	Enum.CoreGuiType.Captures,
-	Enum.CoreGuiType.SelfView,
-	Enum.CoreGuiType.ExperienceShop,
-	Enum.CoreGuiType.AvatarSwitcher,
-	Enum.CoreGuiType.EmotesMenu
+        Enum.CoreGuiType.Captures,
+        Enum.CoreGuiType.SelfView,
+        Enum.CoreGuiType.ExperienceShop,
+        Enum.CoreGuiType.AvatarSwitcher,
+        Enum.CoreGuiType.EmotesMenu
 }
+parametre.blacklist = parametre.blacklist or {}
+function parametre.est_banni(userId)
+        for _, id in ipairs(parametre.blacklist) do
+                if id == userId then return true end
+        end
+        return false
+end
+function parametre.verifier_blacklist(plr)
+        if parametre.est_banni(plr.UserId) then
+                plr:Kick("[Obsidian] Vous etes sur la blacklist de ce jeu.")
+                return true
+        end
+        return false
+end
 function parametre.creer_embed(plr, detection, message_kick, type_sanction)
-	return {
-		["embeds"] = {
-			{
-				["title"] = string.format("Alerte Anti-Cheat : %s (%s)", detection, type_sanction),
-				["color"] = 15158332,
-				["fields"] = {
-					{ ["name"] = "Joueur", ["value"] = string.format("Nom : %s\\nUserId : %d", plr.Name, plr.UserId), ["inline"] = false },
-					{ ["name"] = "Serveur", ["value"] = string.format("PlaceId : %d\\nJobId : %s", game.PlaceId, game.JobId ~= "" and game.JobId or "Studio"), ["inline"] = false },
-					{ ["name"] = "Raison", ["value"] = string.format("%s", message_kick), ["inline"] = false }
-				},
-				["footer"] = { ["text"] = "Obsidian Anticheat" }
-			}
-		}
-	}
+        return {
+                ["embeds"] = {
+                        {
+                                ["title"] = string.format("Alerte Anti-Cheat : %s (%s)", detection, type_sanction),
+                                ["color"] = 15158332,
+                                ["fields"] = {
+                                        { ["name"] = "Joueur", ["value"] = string.format("Nom : %s\\nUserId : %d", plr.Name, plr.UserId), ["inline"] = false },
+                                        { ["name"] = "Serveur", ["value"] = string.format("PlaceId : %d\\nJobId : %s", game.PlaceId, game.JobId ~= "" and game.JobId or "Studio"), ["inline"] = false },
+                                        { ["name"] = "Raison", ["value"] = string.format("%s", message_kick), ["inline"] = false }
+                                },
+                                ["footer"] = { ["text"] = "Obsidian Anticheat" }
+                        }
+                }
+        }
 end
 function parametre.signaler(plr, detection, message_kick, type_sanction)
-	pcall(function()
-		HttpService:RequestAsync({
-			Url = BASE .. "/detection",
-			Method = "POST",
-			Headers = { ["x-api-key"] = KEY, ["Content-Type"] = "application/json" },
-			Body = HttpService:JSONEncode({ player_name = plr.Name, player_id = plr.UserId, detection = detection, message = message_kick, sanction = type_sanction, place_id = game.PlaceId, job_id = jobid })
-		})
-	end)
+        pcall(function()
+                HttpService:RequestAsync({
+                        Url = BASE .. "/detection",
+                        Method = "POST",
+                        Headers = { ["x-api-key"] = KEY, ["Content-Type"] = "application/json" },
+                        Body = HttpService:JSONEncode({ player_name = plr.Name, player_id = plr.UserId, detection = detection, message = message_kick, sanction = type_sanction, place_id = game.PlaceId, job_id = jobid })
+                })
+        end)
 end
 return parametre`
 
@@ -955,6 +969,117 @@ function StatsTab() {
   )
 }
 
+/* ----------------------------------------------------------------- BLACKLIST TAB */
+function BlacklistTab() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ player_id: '', player_name: '', reason: '' })
+  const [adding, setAdding] = useState(false)
+
+  const load = async () => {
+    setLoading(true)
+    try { const d = await api('/blacklist'); setRows(d.blacklist || []) } catch (e) { toast.error(e.message) } finally { setLoading(false) }
+  }
+  useEffect(() => { load() }, [])
+
+  const add = async () => {
+    if (!String(form.player_id).trim()) { toast.error('UserId Roblox requis'); return }
+    setAdding(true)
+    try {
+      await api('/blacklist', { method: 'POST', body: JSON.stringify(form) })
+      toast.success('Joueur ajoute a la blacklist')
+      setForm({ player_id: '', player_name: '', reason: '' })
+      load()
+    } catch (e) {
+      toast.error(e.message === 'already_blacklisted' ? 'Ce joueur est deja dans la blacklist' : e.message)
+    } finally { setAdding(false) }
+  }
+
+  const remove = async (id) => {
+    try {
+      await api('/blacklist/' + id, { method: 'DELETE' })
+      setRows((r) => r.filter((x) => x.id !== id))
+      toast.success('Joueur retire de la blacklist')
+    } catch (e) { toast.error(e.message) }
+  }
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <Card className="bg-card/60 border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Ban className="w-5 h-5 text-primary" /> Blacklist globale <Badge variant="secondary" className="ml-1">{rows.length}</Badge></CardTitle>
+          <CardDescription>
+            Les joueurs bannis ici sont partages entre <span className="text-foreground font-medium">tous vos serveurs</span> et synchronises automatiquement avec le script Roblox.
+            Une sanction <span className="font-mono text-xs">ban</span> ajoute aussi le joueur automatiquement.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid sm:grid-cols-[1fr_1fr_1.4fr_auto] gap-3 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">UserId Roblox *</Label>
+              <Input placeholder="ex: 123456789" value={form.player_id} onChange={(e) => setForm({ ...form, player_id: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Nom (optionnel)</Label>
+              <Input placeholder="Pseudo" value={form.player_name} onChange={(e) => setForm({ ...form, player_name: e.target.value })} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Raison (optionnel)</Label>
+              <Input placeholder="ex: Exploit fly" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && add()} />
+            </div>
+            <Button onClick={add} disabled={adding}><Plus className="w-4 h-4 mr-2" />{adding ? '...' : 'Ajouter'}</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card/60 border-border">
+        <CardContent className="pt-6">
+          {loading ? <p className="text-muted-foreground text-sm">Chargement...</p> : rows.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Ban className="w-10 h-10 mx-auto mb-3 opacity-40" />
+              <p>Aucun joueur dans la blacklist.</p>
+              <p className="text-xs mt-1">Ajoutez un UserId ci-dessus ou bannissez un joueur depuis le jeu.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Joueur</TableHead>
+                    <TableHead>UserId</TableHead>
+                    <TableHead>Raison</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.player_name || '—'}</TableCell>
+                      <TableCell className="font-mono text-xs">{r.player_id}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{r.reason || '—'}</TableCell>
+                      <TableCell>
+                        {r.source === 'auto'
+                          ? <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30">auto</Badge>
+                          : <Badge variant="secondary">manuel</Badge>}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : '—'}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" onClick={() => remove(r.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 /* ----------------------------------------------------------------- EMBED TAB */
 function intToHex(n) {
   const v = Number(n) || 0
@@ -1071,6 +1196,7 @@ function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, 
             <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-2" />Stats</TabsTrigger>
             <TabsTrigger value="config"><SlidersHorizontal className="w-4 h-4 mr-2" />Configuration</TabsTrigger>
             <TabsTrigger value="detections"><Bell className="w-4 h-4 mr-2" />Detections</TabsTrigger>
+            <TabsTrigger value="blacklist"><Ban className="w-4 h-4 mr-2" />Blacklist</TabsTrigger>
             <TabsTrigger value="webhook"><Webhook className="w-4 h-4 mr-2" />Webhook</TabsTrigger>
             <TabsTrigger value="embed"><MessageSquare className="w-4 h-4 mr-2" />Embed</TabsTrigger>
             <TabsTrigger value="integration"><Code2 className="w-4 h-4 mr-2" />Integration Roblox</TabsTrigger>
@@ -1088,6 +1214,9 @@ function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, 
           </TabsContent>
           <TabsContent value="detections">
             <DetectionsTab />
+          </TabsContent>
+          <TabsContent value="blacklist">
+            <BlacklistTab />
           </TabsContent>
           <TabsContent value="webhook">
             <WebhookTab initial={webhook} />
