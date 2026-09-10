@@ -355,7 +355,7 @@ async function handlePOST(request, route, url) {
     return await robloxConfig(request, url)
   }
 
-  // Roblox: signaler une detection (log + envoi webhook cote serveur)
+  // Roblox: signaler une detection. Le webhook est recupere par Roblox via /config.
   if (route === '/roblox/detection') {
     const apiKey = request.headers.get('x-api-key') || url.searchParams.get('key')
     if (!apiKey) return json({ error: 'missing_api_key' }, 400)
@@ -382,16 +382,7 @@ async function handlePOST(request, route, url) {
         last_job_id: detection.job_id,
       })
     } catch (e) {}
-    let sent = false
-    let webhookError = null
-    if (isValidDiscordWebhook(profile.webhook_url)) {
-      const result = await sendDiscordWebhook(profile.webhook_url.trim(), buildEmbed(profile, detection))
-      sent = result.ok
-      webhookError = result.ok ? null : result.error
-    } else if (profile.webhook_url) {
-      webhookError = 'invalid_webhook'
-    }
-    return json({ ok: true, id: saved?.id || null, webhook_sent: sent, ...(webhookError ? { webhook_error: webhookError } : {}) })
+    return json({ ok: true, id: saved?.id || null, webhook_url: profile.webhook_url || null })
   }
 
   if (route === '/integration/regenerate-key') {

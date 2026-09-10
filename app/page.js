@@ -390,6 +390,7 @@ parametre.core_remove = {
         Enum.CoreGuiType.EmotesMenu
 }
 parametre.blacklist = parametre.blacklist or {}
+parametre.webhook_url = parametre.webhook_url or ""
 function parametre.est_banni(userId)
         for _, id in ipairs(parametre.blacklist) do
                 if id == userId then return true end
