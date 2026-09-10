@@ -421,14 +421,63 @@ function parametre.creer_embed(plr, detection, message_kick, type_sanction)
         }
 end
 function parametre.signaler(plr, detection, message_kick, type_sanction)
-        pcall(function()
-                HttpService:RequestAsync({
-                        Url = BASE .. "/detection",
-                        Method = "POST",
-                        Headers = { ["x-api-key"] = KEY, ["Content-Type"] = "application/json" },
-                        Body = HttpService:JSONEncode({ player_name = plr.Name, player_id = plr.UserId, detection = detection, message = message_kick, sanction = type_sanction, place_id = game.PlaceId, job_id = jobid })
-                })
-        end)
+  local payload = {
+    player_name = plr.Name,
+    display_name = plr.DisplayName,
+    player_id = plr.UserId,
+    detection = detection,
+    message = message_kick,
+    sanction = type_sanction,
+    place_id = game.PlaceId,
+    job_id = jobid
+  }
+
+  pcall(function()
+    HttpService:RequestAsync({
+      Url = BASE .. "/detection",
+      Method = "POST",
+      Headers = { ["x-api-key"] = KEY, ["Content-Type"] = "application/json" },
+      Body = HttpService:JSONEncode(payload)
+    })
+  end)
+
+  if parametre.webhook_url and parametre.webhook_url ~= "" then
+    pcall(function()
+      local sanction = string.upper(tostring(type_sanction or "KICK"))
+      local webhookPayload = {
+        ["embeds"] = {
+          {
+            ["title"] = string.format("🚨 Alerte Anti-Cheat : %s (%s)", tostring(detection or "inconnu"), sanction),
+            ["color"] = 15158332,
+            ["fields"] = {
+              {
+                ["name"] = "Joueur",
+                ["value"] = string.format("**Nom :** `%s`\n**DisplayName :** `%s`\n**UserId :** [%s](https://www.roblox.com/users/%s/profile)", plr.Name, plr.DisplayName, plr.UserId, plr.UserId),
+                ["inline"] = false
+              },
+              {
+                ["name"] = "Informations serveur",
+                ["value"] = string.format("**PlaceId :** `%s`\n**JobId :** `%s`", game.PlaceId, jobid),
+                ["inline"] = false
+              },
+              {
+                ["name"] = "Raison envoyée",
+                                                                ["value"] = "\`\`\`" .. tostring(message_kick or "Aucune raison"):gsub("\`\`\`", "'''") .. "\`\`\`",
+                ["inline"] = false
+              }
+            },
+            ["footer"] = { ["text"] = "Obsidian Anticheat - " .. os.date("%d/%m/%Y") }
+          }
+        }
+      }
+      HttpService:RequestAsync({
+        Url = parametre.webhook_url,
+        Method = "POST",
+        Headers = { ["Content-Type"] = "application/json" },
+        Body = HttpService:JSONEncode(webhookPayload)
+      })
+    end)
+  end
 end
 return parametre`
 
