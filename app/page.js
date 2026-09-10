@@ -421,6 +421,7 @@ function parametre.creer_embed(plr, detection, message_kick, type_sanction)
         for token, value in pairs(values) do
             text = text:gsub(token, function() return tostring(value) end)
         end
+        text = text:gsub(string.char(92) .. "n", string.char(10))
         return text
     end
     local cfg = parametre.embed_config or {}

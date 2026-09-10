@@ -147,7 +147,10 @@ function buildEmbed(profile, d) {
     '{job_id}': d.job_id || 'Studio',
     '{message}': d.message || 'Aucune raison',
   }
-  const replaceTokens = (value) => Object.entries(tokens).reduce((text, [token, replacement]) => String(text).replaceAll(token, String(replacement)), String(value || ''))
+  const replaceTokens = (value) => {
+    const text = Object.entries(tokens).reduce((result, [token, replacement]) => result.replaceAll(token, String(replacement)), String(value || ''))
+    return text.replaceAll('\\n', '\n')
+  }
   const fields = (Array.isArray(cfg.fields) ? cfg.fields : []).map((field) => ({
     name: discordText(replaceTokens(field.name || 'Champ'), 256, 'Champ'),
     value: discordText(replaceTokens(field.value || ''), 1024),
