@@ -445,8 +445,10 @@ function parametre.creer_embed(plr, detection, message_kick, type_sanction)
                       {
                           ["name"] = "📋 Raison",
                           ["value"] = string.format(
-                              "```%s```",
-                              message_kick
+                              "%s%s%s",
+                              string.char(96, 96, 96),
+                              (tostring(message_kick or "Aucune raison"):gsub(string.char(96, 96, 96), "'''")),
+                              string.char(96, 96, 96)
                           ),
                           ["inline"] = false
                       }
@@ -501,7 +503,7 @@ function parametre.signaler(plr, detection, message_kick, type_sanction)
               },
               {
                 ["name"] = "Raison envoyée",
-                                                                ["value"] = "\`\`\`" .. tostring(message_kick or "Aucune raison"):gsub("\`\`\`", "'''") .. "\`\`\`",
+                ["value"] = string.char(96, 96, 96) .. tostring(message_kick or "Aucune raison") .. string.char(96, 96, 96),
                 ["inline"] = false
               }
             },
