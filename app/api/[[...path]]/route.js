@@ -115,6 +115,7 @@ function buildRobloxConfig(params, profile) {
     setDeep(out, p.key, val)
   }
   out.webhook_url = profile.webhook_url || ''
+  out.embed_config = { ...DEFAULT_EMBED(), ...(profile.embed_config || {}) }
   out.rank = profile.rank || 'Freemium'
   return out
 }
@@ -126,43 +127,38 @@ function DEFAULT_EMBED() {
     title: '🚨 Alerte Anti-Cheat : {detection} ({sanction})',
     color: 15158332,
     footer: 'Obsidian Anticheat',
-    show_player: true,
-    show_server: true,
-    show_reason: true,
+    fields: [
+      { name: 'Joueur', value: '**Nom :** `{player}`\\n**DisplayName :** `{display_name}`\\n**UserId :** `{player_id}`', inline: false },
+      { name: 'Informations serveur', value: '**PlaceId :** `{place_id}`\\n**JobId :** `{job_id}`', inline: false },
+      { name: 'Raison envoyée', value: '```{message}```', inline: false },
+    ],
   }
 }
 
 function buildEmbed(profile, d) {
   const cfg = { ...DEFAULT_EMBED(), ...(profile.embed_config || {}) }
-  const title = String(cfg.title || '')
-    .replaceAll('{detection}', d.detection_type || '?')
-    .replaceAll('{sanction}', d.sanction || '?')
-    .replaceAll('{player}', d.player_name || '?')
-  const fields = []
-  if (cfg.show_player !== false) {
-    fields.push({
-      name: 'Joueur',
-      value: discordText(`**Nom :** \`${discordText(d.player_name, 120)}\`\n**UserId :** [${discordText(d.player_id, 40)}](https://www.roblox.com/users/${discordText(d.player_id, 40, '0')}/profile)`, 1024),
-      inline: false,
-    })
+  const tokens = {
+    '{detection}': d.detection_type || '?',
+    '{sanction}': d.sanction || '?',
+    '{player}': d.player_name || '?',
+    '{display_name}': d.display_name || d.player_name || '?',
+    '{player_id}': d.player_id || '?',
+    '{place_id}': d.place_id || '?',
+    '{job_id}': d.job_id || 'Studio',
+    '{message}': d.message || 'Aucune raison',
   }
-  if (cfg.show_server !== false) {
-    fields.push({
-      name: 'Informations serveur',
-      value: discordText(`**PlaceId :** \`${discordText(d.place_id, 40)}\`\n**JobId :** \`${discordText(d.job_id, 180, 'Studio')}\``, 1024),
-      inline: false,
-    })
-  }
-  if (cfg.show_reason !== false) {
-    const reason = discordText(d.message, 950, 'Aucune raison').replaceAll('```', "'''")
-    fields.push({ name: 'Raison', value: `\`\`\`${reason}\`\`\``, inline: false })
-  }
+  const replaceTokens = (value) => Object.entries(tokens).reduce((text, [token, replacement]) => String(text).replaceAll(token, String(replacement)), String(value || ''))
+  const fields = (Array.isArray(cfg.fields) ? cfg.fields : []).map((field) => ({
+    name: discordText(replaceTokens(field.name || 'Champ'), 256, 'Champ'),
+    value: discordText(replaceTokens(field.value || ''), 1024),
+    inline: field.inline === true,
+  }))
   return {
     embeds: [{
-      title: discordText(title, 256, 'Alerte Anti-Cheat'),
+      title: discordText(replaceTokens(cfg.title), 256, 'Alerte Anti-Cheat'),
       color: Number(cfg.color) || 15158332,
       fields,
-      footer: { text: discordText((cfg.footer || 'Obsidian Anticheat') + ' - ' + new Date().toLocaleDateString('fr-FR'), 2048) },
+      footer: { text: discordText(replaceTokens(cfg.footer || 'Obsidian Anticheat') + ' - ' + new Date().toLocaleDateString('fr-FR'), 2048) },
     }],
   }
 }

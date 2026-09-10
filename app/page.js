@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/table'
 import { toast } from 'sonner'
 import {
-  Shield, ShieldCheck, Lock, Zap, Eye, EyeOff, Copy, RefreshCw, Send, Plus, Trash2, Pencil,
+  Shield, ShieldCheck, Lock, Zap, Eye, EyeOff, Copy, RefreshCw, Send, Plus, Trash2, Pencil, ArrowUp, ArrowDown,
   Crown, Gauge, Webhook, Code2, Users, SlidersHorizontal, LogOut, Clock, Sparkles, Github,
   Activity, Bell, MessageSquare, Wifi, WifiOff, Filter, Palette, RotateCw,
   BarChart3, TrendingUp, Users2, Ban,
@@ -405,73 +405,41 @@ function parametre.verifier_blacklist(plr)
         return false
 end
 function parametre.creer_embed(plr, detection, message_kick, type_sanction)
-        return {
-          ["embeds"] = {
-              {
-                  ["title"] = "🛡️ ALERTE ANTI-CHEAT",
-                  ["description"] = string.format(
-                      "Une détection a été enregistrée par **Obsidian Anticheat**.\n\n" ..
-                      "⚠️ **Détection :** %s%s%s\n" ..
-                      "🔨 **Sanction :** %s%s%s",
-                      string.char(96, 96, 96),
-                      detection,
-                      string.char(96, 96, 96),
-                      string.char(96, 96, 96),
-                      type_sanction
-                      , string.char(96, 96, 96)
-                  ),
-
-                  ["color"] = 15158332,
-
-                  ["fields"] = {
-                      {
-                          ["name"] = "👤 Joueur",
-                          ["value"] = string.format(
-                              "**Nom :** %s%s%s\n" ..
-                              "**UserId :** %s%s%s",
-                              string.char(96, 96, 96),
-                              plr.Name,
-                              string.char(96, 96, 96),
-                              string.char(96, 96, 96),
-                              plr.UserId
-                              , string.char(96, 96, 96)
-                          ),
-                          ["inline"] = true
-                      },
-
-                      {
-                          ["name"] = "🌐 Serveur",
-                          ["value"] = string.format(
-                              "**PlaceId :** %s%s%s\n" ..
-                              "**JobId :** %s%s%s",
-                              string.char(96, 96, 96),
-                              game.PlaceId,
-                              string.char(96, 96, 96),
-                              string.char(96, 96, 96),
-                              game.JobId ~= "" and game.JobId or "Studio",
-                              string.char(96, 96, 96)
-                          ),
-                          ["inline"] = true
-                      },
-
-                      {
-                          ["name"] = "📋 Raison",
-                          ["value"] = string.format(
-                              "%s%s%s",
-                              string.char(96, 96, 96),
-                              (tostring(message_kick or "Aucune raison"):gsub(string.char(96, 96, 96), "'''")),
-                              string.char(96, 96, 96)
-                          ),
-                          ["inline"] = false
-                      }
-                  },
-
-                  ["footer"] = {
-                      ["text"] = "Obsidian Anticheat • Security System"
-                  }
-              }
-          }
-        }
+    local job = game.JobId ~= "" and game.JobId or "Studio"
+    local values = {
+        ["{detection}"] = detection or "inconnu",
+        ["{sanction}"] = type_sanction or "KICK",
+        ["{player}"] = plr.Name,
+        ["{display_name}"] = plr.DisplayName,
+        ["{player_id}"] = plr.UserId,
+        ["{place_id}"] = game.PlaceId,
+        ["{job_id}"] = job,
+        ["{message}"] = message_kick or "Aucune raison"
+    }
+    local function replace_tokens(text)
+        text = tostring(text or "")
+        for token, value in pairs(values) do
+            text = text:gsub(token, function() return tostring(value) end)
+        end
+        return text
+    end
+    local cfg = parametre.embed_config or {}
+    local fields = {}
+    for _, field in ipairs(cfg.fields or {}) do
+        table.insert(fields, {
+            ["name"] = replace_tokens(field.name or "Champ"),
+            ["value"] = replace_tokens(field.value or ""),
+            ["inline"] = field.inline == true
+        })
+    end
+    return {
+        ["embeds"] = {{
+            ["title"] = replace_tokens(cfg.title or "Alerte Anti-Cheat"),
+            ["color"] = tonumber(cfg.color) or 15158332,
+            ["fields"] = fields,
+            ["footer"] = { ["text"] = replace_tokens(cfg.footer or "Obsidian Anticheat") }
+        }}
+    }
 end
 function parametre.signaler(plr, detection, message_kick, type_sanction)
   local payload = {
@@ -496,33 +464,7 @@ function parametre.signaler(plr, detection, message_kick, type_sanction)
 
   if parametre.webhook_url and parametre.webhook_url ~= "" then
     pcall(function()
-      local sanction = string.upper(tostring(type_sanction or "KICK"))
-      local webhookPayload = {
-        ["embeds"] = {
-          {
-            ["title"] = string.format("🚨 Alerte Anti-Cheat : %s (%s)", tostring(detection or "inconnu"), sanction),
-            ["color"] = 15158332,
-            ["fields"] = {
-              {
-                ["name"] = "Joueur",
-                ["value"] = string.format("**Nom :** %s%s%s\n**DisplayName :** %s%s%s\n**UserId :** [%s](https://www.roblox.com/users/%s/profile)", string.char(96, 96, 96), plr.Name, string.char(96, 96, 96), string.char(96, 96, 96), plr.DisplayName, string.char(96, 96, 96), plr.UserId, plr.UserId),
-                ["inline"] = false
-              },
-              {
-                ["name"] = "Informations serveur",
-                ["value"] = string.format("**PlaceId :** %s%s%s\n**JobId :** %s%s%s", string.char(96, 96, 96), game.PlaceId, string.char(96, 96, 96), string.char(96, 96, 96), jobid, string.char(96, 96, 96)),
-                ["inline"] = false
-              },
-              {
-                ["name"] = "Raison envoyée",
-                ["value"] = string.char(96, 96, 96) .. tostring(message_kick or "Aucune raison") .. string.char(96, 96, 96),
-                ["inline"] = false
-              }
-            },
-            ["footer"] = { ["text"] = "Obsidian Anticheat - " .. os.date("%d/%m/%Y") }
-          }
-        }
-      }
+      local webhookPayload = parametre.creer_embed(plr, detection, message_kick, type_sanction)
       HttpService:RequestAsync({
         Url = parametre.webhook_url,
         Method = "POST",
@@ -1215,16 +1157,57 @@ function hexToInt(hex) {
   return parseInt(String(hex).replace('#', ''), 16) || 0
 }
 
+const EMBED_TOKENS = [
+  '{detection}', '{sanction}', '{player}', '{display_name}', '{player_id}',
+  '{place_id}', '{job_id}', '{message}',
+]
+
+const DEFAULT_EMBED_FIELDS = [
+  { name: 'Joueur', value: '**Nom :** `{player}`\n**DisplayName :** `{display_name}`\n**UserId :** `{player_id}`', inline: false },
+  { name: 'Informations serveur', value: '**PlaceId :** `{place_id}`\n**JobId :** `{job_id}`', inline: false },
+  { name: 'Raison envoyée', value: '```{message}```', inline: false },
+]
+
 function EmbedTab({ initial }) {
   const [cfg, setCfg] = useState(() => ({
     title: '🚨 Alerte Anti-Cheat : {detection} ({sanction})',
     color: 15158332,
     footer: 'Obsidian Anticheat',
-    show_player: true, show_server: true, show_reason: true,
+    fields: (initial?.fields?.length ? initial.fields : DEFAULT_EMBED_FIELDS).map((field) => ({
+      name: field.name || 'Nouveau champ',
+      value: field.value || '',
+      inline: !!field.inline,
+    })),
     ...(initial || {}),
   }))
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setCfg((s) => ({ ...s, [k]: v }))
+
+  const updateField = (index, key, value) => {
+    setCfg((state) => ({
+      ...state,
+      fields: state.fields.map((field, fieldIndex) => fieldIndex === index ? { ...field, [key]: value } : field),
+    }))
+  }
+
+  const addField = () => {
+    setCfg((state) => ({ ...state, fields: [...state.fields, { name: 'Nouveau champ', value: '{message}', inline: false }] }))
+  }
+
+  const removeField = (index) => {
+    setCfg((state) => ({ ...state, fields: state.fields.filter((_, fieldIndex) => fieldIndex !== index) }))
+  }
+
+  const moveField = (index, direction) => {
+    setCfg((state) => {
+      const target = index + direction
+      if (target < 0 || target >= state.fields.length) return state
+      const fields = [...state.fields]
+      const [field] = fields.splice(index, 1)
+      fields.splice(target, 0, field)
+      return { ...state, fields }
+    })
+  }
 
   const save = async () => {
     setSaving(true)
@@ -1234,7 +1217,12 @@ function EmbedTab({ initial }) {
     } catch (e) { toast.error(e.message) } finally { setSaving(false) }
   }
 
-  const previewTitle = String(cfg.title || '').replaceAll('{detection}', 'Fly').replaceAll('{sanction}', 'ban').replaceAll('{player}', 'Cheater123')
+  const previewTokens = {
+    '{detection}': 'Fly', '{sanction}': 'KICK', '{player}': 'Cheater123', '{display_name}': 'Cheater123',
+    '{player_id}': '123456', '{place_id}': '987654', '{job_id}': 'server-demo', '{message}': 'Fly detecte',
+  }
+  const replacePreviewTokens = (value) => Object.entries(previewTokens).reduce((text, [token, replacement]) => text.replaceAll(token, replacement), String(value || ''))
+  const previewTitle = replacePreviewTokens(cfg.title)
 
   return (
     <div className="grid md:grid-cols-2 gap-6">
@@ -1255,9 +1243,29 @@ function EmbedTab({ initial }) {
           <div className="space-y-1"><Label>Footer</Label><Input value={cfg.footer} onChange={(e) => set('footer', e.target.value)} /></div>
           <Separator />
           <div className="space-y-3">
-            <div className="flex items-center justify-between"><Label>Afficher le joueur</Label><Switch checked={cfg.show_player !== false} onCheckedChange={(v) => set('show_player', v)} /></div>
-            <div className="flex items-center justify-between"><Label>Afficher les infos serveur</Label><Switch checked={cfg.show_server !== false} onCheckedChange={(v) => set('show_server', v)} /></div>
-            <div className="flex items-center justify-between"><Label>Afficher la raison</Label><Switch checked={cfg.show_reason !== false} onCheckedChange={(v) => set('show_reason', v)} /></div>
+            <div className="flex items-center justify-between gap-3">
+              <div><Label>Champs personnalisés</Label><p className="text-xs text-muted-foreground mt-1">Ajoute, supprime et réorganise les blocs de l'embed.</p></div>
+              <Button type="button" variant="outline" size="sm" onClick={addField}><Plus className="w-4 h-4 mr-1" />Ajouter</Button>
+            </div>
+            <div className="space-y-3">
+              {cfg.fields.map((field, index) => (
+                <div key={`${index}-${field.name}`} className="rounded-md border border-border bg-background/40 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input value={field.name} onChange={(e) => updateField(index, 'name', e.target.value)} placeholder="Nom du champ" />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => moveField(index, -1)} disabled={index === 0} title="Monter"><ArrowUp className="w-4 h-4" /></Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => moveField(index, 1)} disabled={index === cfg.fields.length - 1} title="Descendre"><ArrowDown className="w-4 h-4" /></Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeField(index)} title="Supprimer"><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                  </div>
+                  <Textarea value={field.value} onChange={(e) => updateField(index, 'value', e.target.value)} placeholder="Valeur du champ" className="min-h-20 font-mono text-xs" />
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap gap-1">
+                      {EMBED_TOKENS.map((token) => <button type="button" key={token} className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground" onClick={() => updateField(index, 'value', `${field.value}${token}`)}>{token}</button>)}
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap"><Switch checked={field.inline} onCheckedChange={(value) => updateField(index, 'inline', value)} />Sur une ligne</label>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
           <Button onClick={save} disabled={saving} className="glow">{saving ? 'Enregistrement...' : 'Enregistrer l embed'}</Button>
         </CardContent>
@@ -1271,15 +1279,7 @@ function EmbedTab({ initial }) {
               <div className="w-1 rounded-full shrink-0" style={{ backgroundColor: intToHex(cfg.color) }} />
               <div className="flex-1 min-w-0">
                 <div className="text-white font-semibold text-sm mb-2">{previewTitle}</div>
-                {cfg.show_player !== false && (
-                  <div className="mb-2"><div className="text-[#dbdee1] text-xs font-semibold">Joueur</div><div className="text-[#dbdee1] text-xs">Nom : <span className="bg-black/30 px-1 rounded">Cheater123</span> · UserId : <span className="text-[#00a8fc]">123456</span></div></div>
-                )}
-                {cfg.show_server !== false && (
-                  <div className="mb-2"><div className="text-[#dbdee1] text-xs font-semibold">Informations serveur</div><div className="text-[#dbdee1] text-xs">PlaceId : <span className="bg-black/30 px-1 rounded">987654</span></div></div>
-                )}
-                {cfg.show_reason !== false && (
-                  <div className="mb-2"><div className="text-[#dbdee1] text-xs font-semibold">Raison</div><div className="text-[#dbdee1] text-xs bg-black/30 rounded p-1 font-mono">Fly detecte</div></div>
-                )}
+                {cfg.fields.map((field, index) => <div key={index} className="mb-2"><div className="text-[#dbdee1] text-xs font-semibold">{field.name || 'Champ'}</div><div className="text-[#dbdee1] text-xs whitespace-pre-wrap">{replacePreviewTokens(field.value)}</div></div>)}
                 <div className="text-[#949ba4] text-[10px] mt-2">{cfg.footer} - {new Date().toLocaleDateString('fr-FR')}</div>
               </div>
             </div>
