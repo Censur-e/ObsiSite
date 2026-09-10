@@ -330,6 +330,18 @@ backend:
         agent: "testing"
         comment: "Dev-login guard working correctly in development environment. POST /api/auth/dev-login with correct SESSION_SECRET returns 200 with user object and obsidian_session cookie (verified). POST /api/auth/dev-login with wrong secret returns 403 (verified). In local development (NODE_ENV=development), dev-login remains active for automated testing as expected. The 404 guard only applies in production (NODE_ENV=production)."
 
+  - task: "Blacklist GLOBALE admin (CRUD + injection config Roblox)"
+    implemented: true
+    working: "NA"
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "NOUVEAU: Blacklist GLOBALE unique (table public.blacklist: id uuid, player_id text unique, player_name, reason, created_at) geree UNIQUEMENT par l'admin. PREREQUIS: l'utilisateur doit executer /app/supabase_blacklist.sql dans Supabase (sinon POST=500 / GET=[]). Endpoints: GET /api/blacklist (admin only, 403 sinon). POST /api/blacklist (admin only) body {player_id, player_name?, reason?} => {entry}; 400 si player_id manquant; 409 already_blacklisted si doublon. DELETE /api/blacklist/:id (admin only). La liste (player_id en nombre) est injectee dans /api/roblox/config sous config.blacklist pour TOUS les clients. PAS d'auto-ajout sur ban (100% manuel admin). Tester: (1) 403 pour user non-admin sur GET/POST/DELETE. (2) admin POST player_id=111 => 200; re-POST 111 => 409. (3) GET liste contient 111. (4) GET /api/roblox/config?key=<cle active> => config.blacklist inclut 111 (nombre). (5) DELETE => retire. (6) POST sans player_id => 400."
+
 frontend:
   - task: "Landing + Dashboard + Admin UI"
     implemented: true
@@ -353,7 +365,8 @@ metadata:
   run_ui: false
 
 test_plan:
-  current_focus: []
+  current_focus:
+    - "Blacklist GLOBALE admin (CRUD + injection config Roblox)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -372,4 +385,6 @@ agent_communication:
   - agent: "testing"
     message: "SECURITY + STATS TESTING COMPLETE - ALL TESTS PASSED (4/4 test suites, 100% success). (A) STATS ENDPOINT: GET /api/stats returns 401 without cookie ✓. Created 5 detections with varied detection_type (fly x3, speed, noclip), sanction (kick x3, ban x2), player_name (Bob x2, Alice x2, Charlie). GET /api/stats returned correct aggregations: total=5, last24h=5, last7d=5, unique_players=3, by_type sorted desc (fly count=3), by_sanction (2 entries), top_players sorted desc (Alice/Bob both count=2), timeline exactly 14 entries with today count=5 ✓. (B) SSRF WEBHOOK VALIDATION: All security checks passed - blocked AWS metadata (169.254.169.254), localhost, non-Discord hosts; accepted valid Discord webhooks and empty string; POST /api/webhook/test blocked invalid webhooks ✓. (C) DEV-LOGIN GUARD: Works correctly in development (200 with valid secret, 403 with wrong secret) ✓. (D) REGRESSION: All previously working endpoints verified - GET /api/config (200), POST /api/roblox/detection (200 with key, 400 without, 401 invalid), GET /api/roblox/config (200), rank locking (Freemium cannot save Premium param detection.coreuiv2) ✓. ALL 15 BACKEND TASKS NOW WORKING."
   - agent: "testing"
+  - agent: "main"
+    message: "NOUVELLE TACHE a tester: Blacklist GLOBALE admin. PREREQUIS ABSOLU: la table public.blacklist doit exister (l'utilisateur execute /app/supabase_blacklist.sql). Si GET renvoie [] et POST renvoie 500 => la table n'existe pas encore, signale-le. Utilise dev-login (NODE_ENV=development) pour creer: un ADMIN {is_admin:true, status:active, api_key:'bl_admin_key'} et un NON-ADMIN {is_admin:false, rank:Freemium, status:active, api_key:'bl_client_key'}. Tests: (1) Non-admin: GET/POST/DELETE /api/blacklist => 403 forbidden. (2) Admin POST /api/blacklist body {player_id:'111', player_name:'Cheater', reason:'fly'} => 200 {entry}. Re-POST player_id='111' => 409 already_blacklisted. POST sans player_id => 400 player_id_required. (3) Admin GET /api/blacklist => liste contient player_id='111'. (4) GET /api/roblox/config?key=bl_client_key (ou bl_admin_key) => la reponse contient config.blacklist qui inclut 111 (en NOMBRE, pas string). (5) Admin DELETE /api/blacklist/<id> => {ok:true}, puis GET ne contient plus 111 et config.blacklist ne contient plus 111. (6) Confirme qu'il n'y a PAS d'auto-ajout: POST /api/roblox/detection avec sanction='ban' NE DOIT PAS ajouter le joueur a la blacklist."
     message: "FRONTEND UI TESTING COMPLETE - ALL 3 SCENARIOS PASSED (100% success). Tested comprehensive UI scenarios as requested: (1) STATS TAB: Verified Stats tab exists between Statut and Configuration tabs with bar-chart icon. All 4 stat cards render correctly. Empty state message displays when no detections. Created 4 test detections, clicked Rafraichir button, verified all charts render correctly (area chart for timeline, bar charts for detection types and sanctions, top players list). (2) INTEGRATION ROBLOX - FREEMIUM USER: CRITICAL PASS - Lua code Textarea NOT shown for non-admin user (correct authorization). 'Cle API' card visible, 'Script Roblox' card displays message that module is provided by admin, 'Copier le script' button NOT present (correct). (3) INTEGRATION ROBLOX - ADMIN USER: CRITICAL PASS - Lua code Textarea IS shown for admin user with full Lua script (contains 'local HttpService'). 'Script Roblox (module parametre)' card displays WITH 'Admin' badge, 'Copier le script' button IS present (correct). Admin tab visible in tab bar. Stats tab also visible for admin. All authorization checks working correctly. Screenshots captured for all scenarios. UI is in French as expected. ALL FRONTEND FEATURES WORKING."

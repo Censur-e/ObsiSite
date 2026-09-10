@@ -1009,8 +1009,8 @@ function BlacklistTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Ban className="w-5 h-5 text-primary" /> Blacklist globale <Badge variant="secondary" className="ml-1">{rows.length}</Badge></CardTitle>
           <CardDescription>
-            Les joueurs bannis ici sont partages entre <span className="text-foreground font-medium">tous vos serveurs</span> et synchronises automatiquement avec le script Roblox.
-            Une sanction <span className="font-mono text-xs">ban</span> ajoute aussi le joueur automatiquement.
+            Liste unique geree par l'administrateur, appliquee automatiquement a <span className="text-foreground font-medium">tous les jeux clients</span>.
+            Le script Roblox kicke ces joueurs sur tous les serveurs.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -1048,7 +1048,6 @@ function BlacklistTab() {
                     <TableHead>Joueur</TableHead>
                     <TableHead>UserId</TableHead>
                     <TableHead>Raison</TableHead>
-                    <TableHead>Source</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -1059,11 +1058,6 @@ function BlacklistTab() {
                       <TableCell className="font-medium">{r.player_name || '—'}</TableCell>
                       <TableCell className="font-mono text-xs">{r.player_id}</TableCell>
                       <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{r.reason || '—'}</TableCell>
-                      <TableCell>
-                        {r.source === 'auto'
-                          ? <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30">auto</Badge>
-                          : <Badge variant="secondary">manuel</Badge>}
-                      </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : '—'}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" onClick={() => remove(r.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
@@ -1196,7 +1190,6 @@ function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, 
             <TabsTrigger value="stats"><BarChart3 className="w-4 h-4 mr-2" />Stats</TabsTrigger>
             <TabsTrigger value="config"><SlidersHorizontal className="w-4 h-4 mr-2" />Configuration</TabsTrigger>
             <TabsTrigger value="detections"><Bell className="w-4 h-4 mr-2" />Detections</TabsTrigger>
-            <TabsTrigger value="blacklist"><Ban className="w-4 h-4 mr-2" />Blacklist</TabsTrigger>
             <TabsTrigger value="webhook"><Webhook className="w-4 h-4 mr-2" />Webhook</TabsTrigger>
             <TabsTrigger value="embed"><MessageSquare className="w-4 h-4 mr-2" />Embed</TabsTrigger>
             <TabsTrigger value="integration"><Code2 className="w-4 h-4 mr-2" />Integration Roblox</TabsTrigger>
@@ -1215,9 +1208,6 @@ function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, 
           <TabsContent value="detections">
             <DetectionsTab />
           </TabsContent>
-          <TabsContent value="blacklist">
-            <BlacklistTab />
-          </TabsContent>
           <TabsContent value="webhook">
             <WebhookTab initial={webhook} />
           </TabsContent>
@@ -1233,9 +1223,11 @@ function Dashboard({ me, params, config, webhook, cfgData, reloadAll, onLogout, 
                 <TabsList className="mb-4">
                   <TabsTrigger value="users"><Users className="w-4 h-4 mr-2" />Utilisateurs</TabsTrigger>
                   <TabsTrigger value="params"><SlidersHorizontal className="w-4 h-4 mr-2" />Parametres</TabsTrigger>
+                  <TabsTrigger value="blacklist"><Ban className="w-4 h-4 mr-2" />Blacklist</TabsTrigger>
                 </TabsList>
                 <TabsContent value="users"><AdminUsers /></TabsContent>
                 <TabsContent value="params"><AdminParameters params={params} reload={reloadAll} /></TabsContent>
+                <TabsContent value="blacklist"><BlacklistTab /></TabsContent>
               </Tabs>
             </TabsContent>
           )}

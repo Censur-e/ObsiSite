@@ -266,9 +266,9 @@ async function handleGET(request, route, url) {
 
   if (route === '/blacklist') {
     const profile = await requireProfile(request)
-    if (!profile) return json({ error: 'unauthorized' }, 401)
+    if (!profile || !profile.is_admin) return json({ error: 'forbidden' }, 403)
     let list = []
-    try { list = await listBlacklist(profile.id) } catch (e) { list = [] }
+    try { list = await listBlacklist() } catch (e) { list = [] }
     return json({ blacklist: list || [] })
   }
 
@@ -345,21 +345,6 @@ async function handlePOST(request, route, url) {
     }
     let saved = null
     try { saved = await insertDetection(detection) } catch (e) { console.error('detection insert', e?.message) }
-    // Synchronisation auto: une sanction "ban" ajoute le joueur a la blacklist globale du client
-    if (detection.sanction === 'ban' && detection.player_id) {
-      try {
-        const exists = await getBlacklistEntry(profile.id, detection.player_id)
-        if (!exists) {
-          await insertBlacklist({
-            profile_id: profile.id,
-            player_id: detection.player_id,
-            player_name: detection.player_name,
-            reason: detection.detection_type ? `Auto: ${detection.detection_type}` : 'Auto (ban)',
-            source: 'auto',
-          })
-        }
-      } catch (e) { /* non bloquant (table absente ou doublon) */ }
-    }
     try {
       await updateProfile(profile.id, {
         last_sync: new Date().toISOString(),
@@ -418,19 +403,17 @@ async function handlePOST(request, route, url) {
 
   if (route === '/blacklist') {
     const profile = await requireProfile(request)
-    if (!profile) return json({ error: 'unauthorized' }, 401)
+    if (!profile || !profile.is_admin) return json({ error: 'forbidden' }, 403)
     const body = await request.json().catch(() => ({}))
     const playerId = body.player_id != null ? String(body.player_id).trim() : ''
     if (!playerId) return json({ error: 'player_id_required' }, 400)
     try {
-      const exists = await getBlacklistEntry(profile.id, playerId)
+      const exists = await getBlacklistEntry(playerId)
       if (exists) return json({ error: 'already_blacklisted', entry: exists }, 409)
       const entry = await insertBlacklist({
-        profile_id: profile.id,
         player_id: playerId,
         player_name: body.player_name ? String(body.player_name).slice(0, 120) : null,
         reason: body.reason ? String(body.reason).slice(0, 300) : null,
-        source: 'manuel',
       })
       return json({ entry })
     } catch (e) {
@@ -530,8 +513,8 @@ async function handleDELETE(request, route) {
   const blMatch = route.match(/^\/blacklist\/([^/]+)$/)
   if (blMatch) {
     const profile = await requireProfile(request)
-    if (!profile) return json({ error: 'unauthorized' }, 401)
-    try { await deleteBlacklist(profile.id, blMatch[1]) } catch (e) { return json({ error: 'blacklist_error' }, 500) }
+    if (!profile || !profile.is_admin) return json({ error: 'forbidden' }, 403)
+    try { await deleteBlacklist(blMatch[1]) } catch (e) { return json({ error: 'blacklist_error' }, 500) }
     return json({ ok: true })
   }
 
@@ -553,9 +536,9 @@ async function robloxConfig(request, url) {
   if (profile.status !== 'active') return json({ error: 'inactive_account' }, 403)
   const params = await listParameters()
   const config = buildRobloxConfig(params, profile)
-  // Blacklist globale du client (non bloquant si la table n'existe pas encore)
+  // Blacklist GLOBALE (admin) appliquee a tous les clients (non bloquant si la table n'existe pas encore)
   try {
-    const bl = await listBlacklist(profile.id)
+    const bl = await listBlacklist()
     config.blacklist = (bl || []).map((b) => {
       const n = Number(b.player_id)
       return Number.isFinite(n) ? n : b.player_id
