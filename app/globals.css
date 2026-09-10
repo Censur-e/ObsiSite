@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -87,4 +87,37 @@
     background-image: radial-gradient(rgba(168,85,247,0.08) 1px, transparent 1px);
     background-size: 28px 28px;
   }
+
+  .landing {
+    --landing-accent: #b78cff;
+    background: #09080f;
+    font-family: 'Manrope', sans-serif;
+  }
+  .landing .text-primary { color: #b78cff; }
+  .landing-nav { background: rgba(8, 8, 14, .84); border-bottom: 1px solid rgba(183, 140, 255, .16); backdrop-filter: blur(18px); }
+  .brand-mark, .feature-icon { display: flex; align-items: center; justify-content: center; color: #b78cff; border: 1px solid rgba(183, 140, 255, .45); background: rgba(183, 140, 255, .1); }
+  .brand-mark { width: 32px; height: 32px; border-radius: 8px; }
+  .landing-link:hover { color: #b78cff; transition: color 180ms ease; }
+  .status-dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: #b78cff; box-shadow: 0 0 12px #b78cff; }
+  .discord-button { background: #5865f2; color: white; box-shadow: 0 10px 30px rgba(88, 101, 242, .2); }
+  .discord-button:hover { background: #6d78f5; }
+  .landing-hero { background: radial-gradient(circle at 76% 42%, rgba(183, 140, 255, .13), transparent 31%), linear-gradient(115deg, #09080f 0%, #100d18 55%, #161126 100%); }
+  .landing-hero::before { content: ''; position: absolute; inset: 0; opacity: .12; background-image: linear-gradient(rgba(183,140,255,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(183,140,255,.16) 1px, transparent 1px); background-size: 72px 72px; mask-image: linear-gradient(to bottom, black, transparent 82%); }
+  .eyebrow { color: #b78cff; font: 500 10px/1 'DM Mono', monospace; letter-spacing: .16em; }
+  .eyebrow-line { width: 26px; height: 1px; display: inline-block; vertical-align: middle; margin-right: 10px; background: #b78cff; }
+  .gradient-text { background: linear-gradient(100deg, #f5f2ff 0%, #b78cff 72%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .dashboard-preview { border: 1px solid rgba(183, 140, 255, .3); background: #12101b; box-shadow: 0 34px 90px rgba(0,0,0,.5), 0 0 80px rgba(183,140,255,.12); transform: perspective(1000px) rotateY(-3deg) rotateX(2deg); }
+  .preview-topbar { height: 42px; padding: 0 14px; display: flex; align-items: center; gap: 10px; color: #62706e; font: 10px 'DM Mono', monospace; border-bottom: 1px solid #26312e; }
+  .preview-dots { display: flex; gap: 4px; margin-right: auto; } .preview-dots i { width: 6px; height: 6px; border-radius: 50%; background: #3a4542; }
+  .preview-live { display: flex; align-items: center; gap: 5px; color: #b78cff; }
+  .preview-body { display: grid; grid-template-columns: 48px 1fr; min-height: 365px; }
+  .preview-sidebar { display: flex; flex-direction: column; align-items: center; gap: 23px; padding-top: 18px; color: #746b82; border-right: 1px solid #302941; } .preview-sidebar svg { width: 14px; height: 14px; } .preview-logo { color: #b78cff; margin-bottom: 15px; } .preview-active { color: #b78cff; }
+  .preview-content { padding: 28px; } .preview-kicker, .preview-date, .preview-stats span, .chart-label, .preview-events strong { color: #64716e; font: 9px 'DM Mono', monospace; letter-spacing: .08em; } .preview-content h2 { margin-top: 7px; color: #e7eeeb; font: 600 21px 'Space Grotesk', sans-serif; } .preview-date { margin-top: 3px; }
+  .preview-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; } .preview-stats > div { padding: 14px; border: 1px solid #302941; background: #171322; } .preview-stats strong { display: block; margin: 8px 0 3px; color: #f0ebf8; font: 600 28px 'Space Grotesk', sans-serif; } .preview-stats em { color: #b78cff; font: 9px 'DM Mono', monospace; font-style: normal; }
+  .preview-chart { margin-top: 22px; padding: 14px; border: 1px solid #302941; background: #171322; } .chart-label { display: flex; justify-content: space-between; } .chart-bars { height: 82px; display: flex; align-items: end; gap: 7px; margin-top: 13px; } .chart-bars i { flex: 1; background: linear-gradient(#b78cff, rgba(183,140,255,.18)); opacity: .85; }
+  .preview-events { margin-top: 16px; display: grid; gap: 10px; } .preview-events > div { display: flex; align-items: center; gap: 9px; font-size: 10px; } .preview-events span:nth-child(2) { flex: 1; } .preview-events b, .preview-events small { display: block; } .preview-events b { color: #d9e2dc; font-weight: 500; } .preview-events small { margin-top: 3px; color: #65736f; font: 9px 'DM Mono', monospace; } .preview-events strong { color: #ef8b70; font-size: 8px; } .event-dot { width: 6px; height: 6px; border-radius: 50%; } .event-dot.red { background: #ef8b70; } .event-dot.yellow { background: #e4c36a; }
+  .feature-block { padding: 24px; min-height: 190px; background: #100d17; } .feature-block:hover { background: #171126; } .feature-icon { width: 38px; height: 38px; border-radius: 50%; } .feature-number { color: #b78cff; font: 13px 'DM Mono', monospace; } .feature-block h3 { margin-top: 28px; font: 600 17px 'Space Grotesk', sans-serif; } .feature-block p { margin-top: 7px; color: #958da2; font-size: 13px; line-height: 1.6; }
+  .plans-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; padding: 52px; border: 1px solid #302941; background: linear-gradient(110deg, #151021, #100d17); } .plan-list { display: grid; gap: 10px; align-content: center; } .plan-row { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border: 1px solid #302941; background: #151122; } .plan-row.active { border-color: rgba(183,140,255,.55); background: rgba(183,140,255,.09); } .plan-tag { color: #b78cff; font: 11px 'DM Mono', monospace; } .plan-row div { flex: 1; } .plan-row h3 { font: 600 16px 'Space Grotesk', sans-serif; } .plan-row p { margin-top: 4px; color: #8b8397; font-size: 12px; }
+  .landing-footer { border-top: 1px solid #29233a; padding: 24px 0; color: #70687d; font: 10px 'DM Mono', monospace; }
+  @media (max-width: 767px) { .dashboard-preview { transform: none; } .preview-content { padding: 20px 15px 18px; } .plans-panel { grid-template-columns: 1fr; gap: 30px; padding: 28px 20px; } .preview-body { min-height: 335px; } }
 }

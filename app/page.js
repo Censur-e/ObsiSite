@@ -61,6 +61,39 @@ function StatusBadge({ status }) {
 /* ----------------------------------------------------------------- LANDING */
 function Landing() {
   const features = [
+    { icon: Shield, number: '19+', title: 'Détections actives', desc: 'Freecam, Fly, Remote Spy, Btools et plus.' },
+    { icon: Zap, number: '<1s', title: 'Temps de réaction', desc: 'Chaque signal est transmis sans délai.' },
+    { icon: Webhook, number: '24/7', title: 'Alertes Discord', desc: 'Gardez une trace de chaque événement.' },
+  ]
+  return (
+    <div className="landing min-h-screen bg-background text-foreground">
+      <nav className="fixed top-0 inset-x-0 z-50 landing-nav">
+        <div className="container flex items-center justify-between h-[72px]">
+          <a href="#top" className="flex items-center gap-3 font-display font-bold tracking-[0.18em] text-sm"><div className="brand-mark"><Shield className="w-4 h-4" /></div><span>OBSIDIAN<span className="text-primary">.</span></span></a>
+          <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground"><a href="#features" className="landing-link">Fonctionnalités</a><a href="#plans" className="landing-link">Formules</a><span className="flex items-center gap-2 text-emerald-400"><span className="status-dot" /> Système opérationnel</span></div>
+          <Button asChild size="sm" className="discord-button"><a href="/api/auth/discord/login"><DiscordIcon /> Connexion</a></Button>
+        </div>
+      </nav>
+
+      <main id="top">
+        <section className="landing-hero relative overflow-hidden">
+          <div className="container relative grid lg:grid-cols-[1.02fr_0.98fr] gap-14 items-center pt-36 pb-24 lg:pt-44 lg:pb-32">
+            <div className="max-w-2xl"><div className="eyebrow"><span className="eyebrow-line" /> ROBLOX SECURITY / 01</div><h1 className="font-display text-5xl sm:text-6xl lg:text-[5.6rem] font-semibold leading-[0.94] tracking-[-0.045em] mt-5">La sécurité<br /><span className="gradient-text">sans angle mort.</span></h1><p className="mt-7 max-w-xl text-base sm:text-lg leading-8 text-muted-foreground">Obsidian donne à votre équipe une vision claire de chaque menace. Détectez, configurez et réagissez depuis un seul centre de contrôle.</p><div className="mt-9 flex flex-wrap items-center gap-4"><Button asChild size="lg" className="discord-button h-12 px-6 text-sm"><a href="/api/auth/discord/login"><DiscordIcon /> Ouvrir le dashboard</a></Button><a href="#features" className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors">Voir les capacités <span aria-hidden>↗</span></a></div><div className="mt-12 flex items-center gap-6 text-xs text-muted-foreground"><span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-primary" /> Configuration distante</span><span className="flex items-center gap-2"><Lock className="w-4 h-4 text-primary" /> Clé API chiffrée</span></div></div>
+            <div className="dashboard-preview" aria-label="Aperçu fictif du dashboard Obsidian"><div className="preview-topbar"><span className="preview-dots"><i /><i /><i /></span><span>obsidian / demo account</span><span className="preview-live"><span className="status-dot" /> DEMO</span></div><div className="preview-body"><div className="preview-sidebar"><div className="preview-logo"><Shield className="w-4 h-4" /></div><span className="preview-active"><BarChart3 /></span><span><SlidersHorizontal /></span><span><Bell /></span><span><Users /></span></div><div className="preview-content"><div className="flex items-start justify-between"><div><p className="preview-kicker">OVERVIEW / SAMPLE DATA</p><h2>Votre jeu, sous contrôle.</h2></div><span className="preview-date">09 SEPT 2026</span></div><div className="preview-stats"><div><span>INCIDENTS</span><strong>03</strong><em>− 18% cette semaine</em></div><div><span>JOUEURS SCANNÉS</span><strong>12.4k</strong><em>+ 24% cette semaine</em></div></div><div className="preview-chart"><div className="chart-label"><span>ACTIVITÉ DES DÉTECTIONS</span><span>24H</span></div><div className="chart-bars">{[32, 48, 38, 62, 45, 78, 55, 88, 64, 74, 52, 92].map((height, i) => <i key={i} style={{ height: `${height}%` }} />)}</div></div><div className="preview-events"><div><span className="event-dot red" /><span><b>Remote Spy détecté</b><small>il y a 2 min · player_4821</small></span><strong>ÉLEVÉ</strong></div><div><span className="event-dot yellow" /><span><b>Vitesse inhabituelle</b><small>il y a 8 min · player_1093</small></span><strong>MOYEN</strong></div></div></div></div></div>
+          </div>
+        </section>
+
+        <section id="features" className="container landing-features py-20 lg:py-28"><div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10"><div><div className="eyebrow"><span className="eyebrow-line" /> POUR LES ÉQUIPES QUI AVANCENT</div><h2 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight mt-4">Tout voir. Décider vite.</h2></div><p className="max-w-sm text-sm leading-6 text-muted-foreground">Une couche de sécurité lisible, pensée pour les jeux qui ne peuvent pas se permettre de perdre le contrôle.</p></div><div className="grid md:grid-cols-3 gap-px bg-border border border-border">{features.map((f) => <div key={f.title} className="feature-block"><div className="flex items-center justify-between"><div className="feature-icon"><f.icon className="w-5 h-5" /></div><span className="feature-number">{f.number}</span></div><h3>{f.title}</h3><p>{f.desc}</p></div>)}</div></section>
+
+        <section id="plans" className="container pb-24 lg:pb-32"><div className="plans-panel"><div><div className="eyebrow"><span className="eyebrow-line" /> UNE ÉVOLUTION SIMPLE</div><h2 className="font-display text-3xl sm:text-4xl font-semibold mt-4">Commencez léger.<br /><span className="text-primary">Passez au niveau supérieur.</span></h2><p className="mt-5 max-w-md text-sm leading-6 text-muted-foreground">Les protections essentielles dès le premier jour, puis toute la puissance d’Obsidian lorsque votre communauté grandit.</p></div><div className="plan-list"><div className="plan-row"><span className="plan-tag">01</span><div><h3>Freemium</h3><p>Les détections essentielles pour démarrer.</p></div><Gauge className="w-5 h-5 text-muted-foreground" /></div><div className="plan-row active"><span className="plan-tag">02</span><div><h3>Premium</h3><p>Les protections avancées, sans compromis.</p></div><Crown className="w-5 h-5 text-amber-400" /></div></div></div></section>
+      </main>
+      <footer className="landing-footer"><div className="container flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"><span className="font-display tracking-[0.16em] text-xs font-bold">OBSIDIAN<span className="text-primary">.</span></span><span>Anticheat Roblox indépendant · {new Date().getFullYear()}</span></div></footer>
+    </div>
+  )
+}
+
+function LegacyLanding() {
+  const features = [
     { icon: Shield, title: '19+ Detections', desc: 'Freecam, Fly, Remote Spy, Hitbox Expander, Btools et bien plus.' },
     { icon: Zap, title: 'Configuration a distance', desc: 'Modifiez tous vos parametres sans jamais ouvrir Roblox Studio.' },
     { icon: Webhook, title: 'Webhooks Discord', desc: 'Recevez chaque detection en temps reel dans votre serveur.' },
@@ -190,11 +223,7 @@ function Landing() {
 }
 
 function DiscordIcon() {
-  return (
-    <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d="M20.317 4.369A19.79 19.79 0 0 0 16.558 3c-.2.356-.43.83-.593 1.211a18.27 18.27 0 0 0-4.93 0A12.6 12.6 0 0 0 10.44 3 19.7 19.7 0 0 0 6.68 4.37C2.9 9.9 2.16 15.28 2.5 20.6a19.9 19.9 0 0 0 6.06 3.06c.49-.67.93-1.38 1.3-2.13-.71-.27-1.39-.6-2.03-.99.17-.12.34-.25.5-.38 3.9 1.82 8.12 1.82 11.98 0 .16.13.33.26.5.38-.65.39-1.33.72-2.04.99.37.75.81 1.46 1.3 2.13a19.85 19.85 0 0 0 6.06-3.06c.4-6.16-.7-11.49-3.82-16.23zM9.68 15.33c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.2 0 2.17 1.09 2.15 2.42 0 1.33-.95 2.41-2.15 2.41zm4.64 0c-1.18 0-2.15-1.08-2.15-2.41 0-1.33.95-2.42 2.15-2.42 1.2 0 2.17 1.09 2.15 2.42 0 1.33-.94 2.41-2.15 2.41z" />
-    </svg>
-  )
+  return <img src="/Discord_Logo_sans_texte.svg" alt="" aria-hidden="true" className="w-4 h-5 mr-2 brightness-0 invert" />
 }
 
 /* ----------------------------------------------------------------- PENDING */
