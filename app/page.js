@@ -411,10 +411,14 @@ function parametre.creer_embed(plr, detection, message_kick, type_sanction)
                   ["title"] = "🛡️ ALERTE ANTI-CHEAT",
                   ["description"] = string.format(
                       "Une détection a été enregistrée par **Obsidian Anticheat**.\n\n" ..
-                      "⚠️ **Détection :** `%s`\n" ..
-                      "🔨 **Sanction :** `%s`",
+                      "⚠️ **Détection :** %s%s%s\n" ..
+                      "🔨 **Sanction :** %s%s%s",
+                      string.char(96, 96, 96),
                       detection,
+                      string.char(96, 96, 96),
+                      string.char(96, 96, 96),
                       type_sanction
+                      , string.char(96, 96, 96)
                   ),
 
                   ["color"] = 15158332,
@@ -423,10 +427,14 @@ function parametre.creer_embed(plr, detection, message_kick, type_sanction)
                       {
                           ["name"] = "👤 Joueur",
                           ["value"] = string.format(
-                              "**Nom :** `%s`\n" ..
-                              "**UserId :** `%d`",
+                              "**Nom :** %s%s%s\n" ..
+                              "**UserId :** %s%s%s",
+                              string.char(96, 96, 96),
                               plr.Name,
+                              string.char(96, 96, 96),
+                              string.char(96, 96, 96),
                               plr.UserId
+                              , string.char(96, 96, 96)
                           ),
                           ["inline"] = true
                       },
@@ -434,10 +442,14 @@ function parametre.creer_embed(plr, detection, message_kick, type_sanction)
                       {
                           ["name"] = "🌐 Serveur",
                           ["value"] = string.format(
-                              "**PlaceId :** `%d`\n" ..
-                              "**JobId :** `%s`",
+                              "**PlaceId :** %s%s%s\n" ..
+                              "**JobId :** %s%s%s",
+                              string.char(96, 96, 96),
                               game.PlaceId,
-                              game.JobId ~= "" and game.JobId or "Studio"
+                              string.char(96, 96, 96),
+                              string.char(96, 96, 96),
+                              game.JobId ~= "" and game.JobId or "Studio",
+                              string.char(96, 96, 96)
                           ),
                           ["inline"] = true
                       },
@@ -493,12 +505,12 @@ function parametre.signaler(plr, detection, message_kick, type_sanction)
             ["fields"] = {
               {
                 ["name"] = "Joueur",
-                ["value"] = string.format("**Nom :** `%s`\n**DisplayName :** `%s`\n**UserId :** [%s](https://www.roblox.com/users/%s/profile)", plr.Name, plr.DisplayName, plr.UserId, plr.UserId),
+                ["value"] = string.format("**Nom :** %s%s%s\n**DisplayName :** %s%s%s\n**UserId :** [%s](https://www.roblox.com/users/%s/profile)", string.char(96, 96, 96), plr.Name, string.char(96, 96, 96), string.char(96, 96, 96), plr.DisplayName, string.char(96, 96, 96), plr.UserId, plr.UserId),
                 ["inline"] = false
               },
               {
                 ["name"] = "Informations serveur",
-                ["value"] = string.format("**PlaceId :** `%s`\n**JobId :** `%s`", game.PlaceId, jobid),
+                ["value"] = string.format("**PlaceId :** %s%s%s\n**JobId :** %s%s%s", string.char(96, 96, 96), game.PlaceId, string.char(96, 96, 96), string.char(96, 96, 96), jobid, string.char(96, 96, 96)),
                 ["inline"] = false
               },
               {
