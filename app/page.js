@@ -406,18 +406,57 @@ function parametre.verifier_blacklist(plr)
 end
 function parametre.creer_embed(plr, detection, message_kick, type_sanction)
         return {
-                ["embeds"] = {
-                        {
-                                ["title"] = string.format("Alerte Anti-Cheat : %s (%s)", detection, type_sanction),
-                                ["color"] = 15158332,
-                                ["fields"] = {
-                                        { ["name"] = "Joueur", ["value"] = string.format("Nom : %s\\nUserId : %d", plr.Name, plr.UserId), ["inline"] = false },
-                                        { ["name"] = "Serveur", ["value"] = string.format("PlaceId : %d\\nJobId : %s", game.PlaceId, game.JobId ~= "" and game.JobId or "Studio"), ["inline"] = false },
-                                        { ["name"] = "Raison", ["value"] = string.format("%s", message_kick), ["inline"] = false }
-                                },
-                                ["footer"] = { ["text"] = "Obsidian Anticheat" }
-                        }
-                }
+          ["embeds"] = {
+              {
+                  ["title"] = "🛡️ ALERTE ANTI-CHEAT",
+                  ["description"] = string.format(
+                      "Une détection a été enregistrée par **Obsidian Anticheat**.\n\n" ..
+                      "⚠️ **Détection :** `%s`\n" ..
+                      "🔨 **Sanction :** `%s`",
+                      detection,
+                      type_sanction
+                  ),
+
+                  ["color"] = 15158332,
+
+                  ["fields"] = {
+                      {
+                          ["name"] = "👤 Joueur",
+                          ["value"] = string.format(
+                              "**Nom :** `%s`\n" ..
+                              "**UserId :** `%d`",
+                              plr.Name,
+                              plr.UserId
+                          ),
+                          ["inline"] = true
+                      },
+
+                      {
+                          ["name"] = "🌐 Serveur",
+                          ["value"] = string.format(
+                              "**PlaceId :** `%d`\n" ..
+                              "**JobId :** `%s`",
+                              game.PlaceId,
+                              game.JobId ~= "" and game.JobId or "Studio"
+                          ),
+                          ["inline"] = true
+                      },
+
+                      {
+                          ["name"] = "📋 Raison",
+                          ["value"] = string.format(
+                              "```%s```",
+                              message_kick
+                          ),
+                          ["inline"] = false
+                      }
+                  },
+
+                  ["footer"] = {
+                      ["text"] = "Obsidian Anticheat • Security System"
+                  }
+              }
+          }
         }
 end
 function parametre.signaler(plr, detection, message_kick, type_sanction)
