@@ -96,7 +96,8 @@
   .landing .text-primary { color: #b78cff; }
   .landing-nav { background: rgba(8, 8, 14, .84); border-bottom: 1px solid rgba(183, 140, 255, .16); backdrop-filter: blur(18px); }
   .brand-mark, .feature-icon { display: flex; align-items: center; justify-content: center; color: #b78cff; border: 1px solid rgba(183, 140, 255, .45); background: rgba(183, 140, 255, .1); }
-  .brand-mark { width: 32px; height: 32px; border-radius: 8px; }
+  .brand-mark { width: 28px; height: 32px; border-radius: 0; overflow: visible; border: 0; background: transparent; }
+  .brand-mark img { display: block; width: 20px; height: auto; aspect-ratio: 60 / 94; object-fit: contain; }
   .landing-link:hover { color: #b78cff; transition: color 180ms ease; }
   .status-dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: #b78cff; box-shadow: 0 0 12px #b78cff; }
   .discord-button { background: #5865f2; color: white; box-shadow: 0 10px 30px rgba(88, 101, 242, .2); }

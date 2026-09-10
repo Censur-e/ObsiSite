@@ -69,7 +69,7 @@ function Landing() {
     <div className="landing min-h-screen bg-background text-foreground">
       <nav className="fixed top-0 inset-x-0 z-50 landing-nav">
         <div className="container flex items-center justify-between h-[72px]">
-          <a href="#top" className="flex items-center gap-3 font-display font-bold tracking-[0.18em] text-sm"><div className="brand-mark"><Shield className="w-4 h-4" /></div><span>OBSIDIAN<span className="text-primary">.</span></span></a>
+          <a href="#top" className="flex items-center gap-3 font-display font-bold tracking-[0.18em] text-sm"><div className="brand-mark"><img src="/obsidian-logo.svg" alt="" aria-hidden="true" /></div><span>OBSIDIAN<span className="text-primary">.</span></span></a>
           <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground"><a href="#features" className="landing-link">Fonctionnalités</a><a href="#plans" className="landing-link">Formules</a><span className="flex items-center gap-2 text-emerald-400"><span className="status-dot" /> Système opérationnel</span></div>
           <Button asChild size="sm" className="discord-button"><a href="/api/auth/discord/login"><DiscordIcon /> Connexion</a></Button>
         </div>
@@ -1305,7 +1305,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background grid-bg">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/40 flex items-center justify-center glow animate-pulse"><Shield className="w-6 h-6 text-primary" /></div>
+          <img src="/obsidian-logo.svg" alt="Obsidian" className="h-16 w-auto object-contain animate-pulse drop-shadow-[0_0_24px_rgba(183,140,255,0.55)]" />
           <p className="text-muted-foreground text-sm">Chargement d'Obsidian...</p>
         </div>
       </div>
