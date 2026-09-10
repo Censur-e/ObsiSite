@@ -37,7 +37,7 @@ const FEATURE_IMG = 'https://images.unsplash.com/photo-1602042808032-fca7e25659c
 async function api(path, opts = {}) {
   const res = await fetch(`/api${path}`, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...opts })
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || 'Erreur')
+  if (!res.ok) throw new Error(data.detail || data.error || 'Erreur')
   return data
 }
 
@@ -341,7 +341,7 @@ function WebhookTab({ initial }) {
     try {
       await api('/webhook/test', { method: 'POST', body: JSON.stringify({ webhook_url: url }) })
       toast.success('Message de test envoye sur Discord')
-    } catch (e) { toast.error('Echec de l envoi. Verifie l URL du webhook.') } finally { setTesting(false) }
+    } catch (e) { toast.error(`Echec du webhook : ${e.message}`) } finally { setTesting(false) }
   }
 
   return (

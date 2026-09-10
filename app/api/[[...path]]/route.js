@@ -19,6 +19,8 @@ import {
 } from '@/lib/supabaseRest'
 import { signSession, verifySession, newApiKey } from '@/lib/session'
 
+export const runtime = 'nodejs'
+
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET
@@ -82,7 +84,9 @@ function discordText(value, maxLength, fallback = '?') {
 
 async function sendDiscordWebhook(webhookUrl, payload) {
   try {
-    const response = await fetch(webhookUrl, {
+    const target = new URL(webhookUrl)
+    target.searchParams.set('wait', 'true')
+    const response = await fetch(target, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -90,7 +94,10 @@ async function sendDiscordWebhook(webhookUrl, payload) {
       signal: AbortSignal.timeout(10000),
     })
     if (response.ok) return { ok: true }
-    return { ok: false, status: response.status, error: `discord_http_${response.status}` }
+    const responseText = await response.text().catch(() => '')
+    let discordMessage = ''
+    try { discordMessage = JSON.parse(responseText)?.message || '' } catch {}
+    return { ok: false, status: response.status, error: discordMessage || `discord_http_${response.status}` }
   } catch (error) {
     console.error('Discord webhook error:', error?.message)
     return { ok: false, error: 'discord_network_error' }
