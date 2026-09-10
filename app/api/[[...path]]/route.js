@@ -75,6 +75,28 @@ function isValidDiscordWebhook(u) {
   return true
 }
 
+function discordText(value, maxLength, fallback = '?') {
+  const text = String(value ?? fallback).replace(/\u0000/g, '').trim() || fallback
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
+}
+
+async function sendDiscordWebhook(webhookUrl, payload) {
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(10000),
+    })
+    if (response.ok) return { ok: true }
+    return { ok: false, status: response.status, error: `discord_http_${response.status}` }
+  } catch (error) {
+    console.error('Discord webhook error:', error?.message)
+    return { ok: false, error: 'discord_network_error' }
+  }
+}
+
 function buildRobloxConfig(params, profile) {
   const out = {}
   for (const p of params) {
@@ -113,26 +135,27 @@ function buildEmbed(profile, d) {
   if (cfg.show_player !== false) {
     fields.push({
       name: 'Joueur',
-      value: `**Nom :** \`${d.player_name || '?'}\`\n**UserId :** [${d.player_id || '?'}](https://www.roblox.com/users/${d.player_id || 0}/profile)`,
+      value: discordText(`**Nom :** \`${discordText(d.player_name, 120)}\`\n**UserId :** [${discordText(d.player_id, 40)}](https://www.roblox.com/users/${discordText(d.player_id, 40, '0')}/profile)`, 1024),
       inline: false,
     })
   }
   if (cfg.show_server !== false) {
     fields.push({
       name: 'Informations serveur',
-      value: `**PlaceId :** \`${d.place_id || '?'}\`\n**JobId :** \`${d.job_id || 'Studio'}\``,
+      value: discordText(`**PlaceId :** \`${discordText(d.place_id, 40)}\`\n**JobId :** \`${discordText(d.job_id, 180, 'Studio')}\``, 1024),
       inline: false,
     })
   }
   if (cfg.show_reason !== false) {
-    fields.push({ name: 'Raison', value: '```' + (d.message || '') + '```', inline: false })
+    const reason = discordText(d.message, 950, 'Aucune raison').replaceAll('```', "'''")
+    fields.push({ name: 'Raison', value: `\`\`\`${reason}\`\`\``, inline: false })
   }
   return {
     embeds: [{
-      title: title || 'Alerte Anti-Cheat',
+      title: discordText(title, 256, 'Alerte Anti-Cheat'),
       color: Number(cfg.color) || 15158332,
       fields,
-      footer: { text: (cfg.footer || 'Obsidian Anticheat') + ' - ' + new Date().toLocaleDateString('fr-FR') },
+      footer: { text: discordText((cfg.footer || 'Obsidian Anticheat') + ' - ' + new Date().toLocaleDateString('fr-FR'), 2048) },
     }],
   }
 }
@@ -353,17 +376,15 @@ async function handlePOST(request, route, url) {
       })
     } catch (e) {}
     let sent = false
+    let webhookError = null
     if (isValidDiscordWebhook(profile.webhook_url)) {
-      try {
-        const r = await fetch(profile.webhook_url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildEmbed(profile, detection)),
-        })
-        sent = r.ok
-      } catch (e) {}
+      const result = await sendDiscordWebhook(profile.webhook_url.trim(), buildEmbed(profile, detection))
+      sent = result.ok
+      webhookError = result.ok ? null : result.error
+    } else if (profile.webhook_url) {
+      webhookError = 'invalid_webhook'
     }
-    return json({ ok: true, id: saved?.id || null, webhook_sent: sent })
+    return json({ ok: true, id: saved?.id || null, webhook_sent: sent, ...(webhookError ? { webhook_error: webhookError } : {}) })
   }
 
   if (route === '/integration/regenerate-key') {
@@ -392,13 +413,11 @@ async function handlePOST(request, route, url) {
         footer: { text: 'Obsidian Anticheat - ' + new Date().toLocaleDateString('fr-FR') },
       }],
     }
-    try {
-      const r = await fetch(wh, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      if (!r.ok) return json({ error: 'webhook_failed', status: r.status }, 400)
-      return json({ ok: true })
-    } catch (e) {
-      return json({ error: 'webhook_failed' }, 400)
+    const result = await sendDiscordWebhook(wh.trim(), payload)
+    if (!result.ok) {
+      return json({ error: 'webhook_failed', status: result.status || 502, detail: result.error }, 400)
     }
+    return json({ ok: true })
   }
 
   if (route === '/blacklist') {
